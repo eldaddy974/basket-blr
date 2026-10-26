@@ -133,7 +133,7 @@
       </div>
 
       <div class="flex gap-2">
-        <button onclick="fermerEdition()" class="flex-1 bg-slate-100 text-slate-700 font-bold py-2.5 rounded-lg text-sm">Annuler</button>
+        <button onclick="fermerEdition()" class="flex-1 bg-slate-100 text-slate-700 font-bold py-2.5 rounded-lg text-sm">Fermer</button>
         <button onclick="enregistrerModificationSession()" class="flex-1 bg-blue-600 text-white font-bold py-2.5 rounded-lg text-sm">Enregistrer</button>
       </div>
     </div>
@@ -354,7 +354,6 @@
       return;
     }
 
-    // Ces données sont sauvegardées même si l'activation admin échoue.
     profil.prenom = prenom;
     profil.nom = nom;
     profil.abonne = abonne;
@@ -392,8 +391,6 @@
     const bouton = document.getElementById('bouton-enregistrer-profil');
     bouton.disabled = true;
     bouton.textContent = 'Vérification…';
-
-    // Garder le mot de passe uniquement en mémoire pendant cette visite.
     motDePasseAdminEnMemoire = motDePasse;
 
     try {
@@ -401,7 +398,6 @@
       if (resultat?.authorized !== true) {
         throw new Error('La fonction admin-actions n’a pas confirmé le mot de passe.');
       }
-
       profil.admin = true;
       mettreAJourProfil();
       afficherSessions();
@@ -452,9 +448,8 @@
       const avantH24 = (new Date(session.debut_date).getTime() - Date.now()) / 3600000 > 24;
       const annulee = session.statut === 'annulee';
 
-      let boutonVote = '';
-      if (!annulee) {
-        boutonVote = monVote
+      const boutonVote = !annulee
+        ? (monVote
           ? `<button onclick="annulerInscription('${echapper(monVote.id)}')"
                class="flex-1 bg-red-600 text-white font-extrabold text-xs py-3 rounded-xl">
                Annuler ma place (${monVote.statut === 'confirmed' ? 'Confirmée' : 'Attente'})
@@ -464,8 +459,8 @@
                ${profil.abonne && !plein ? 'Participer (Confirmé direct)' :
                  (plein ? 'Rejoindre la file d’attente' :
                  (avantH24 && !profil.abonne ? 'Rejoindre la file d’attente (H-24)' : 'Participer'))}
-             </button>`;
-      }
+             </button>`)
+        : '';
 
       const invitesHtml = mesInvites.map(invite => `
         <button onclick="annulerInscription('${echapper(invite.id)}')"
@@ -474,14 +469,16 @@
           (${invite.statut === 'confirmed' ? 'confirmé' : 'en attente'})
         </button>`).join('');
 
-      const numeroSession = String(session.nom || '').match(/Session\s*(\d+)/i)?.[1] || '1';
+      const numero = String(session.nom || '').match(/Session\s*(\d+)/i)?.[1] || '1';
       const carte = document.createElement('section');
-      carte.className = `bg-white rounded-2xl p-4 shadow-sm border ${annulee ? 'border-red-300' : 'border-slate-200'}`;
+      carte.className = annulee
+        ? 'bg-slate-200 rounded-2xl p-4 shadow-sm border border-slate-400 opacity-75'
+        : 'bg-white rounded-2xl p-4 shadow-sm border border-slate-200';
 
       carte.innerHTML = `
         <div class="flex justify-between items-start mb-3">
           <div>
-            <h2 class="font-extrabold text-base text-slate-900">
+            <h2 class="font-extrabold text-base ${annulee ? 'text-slate-600' : 'text-slate-900'}">
               ${echapper(session.nom)}
               <span class="text-xs text-slate-500 font-normal">
                 (${new Date(session.debut_date).toLocaleDateString('fr-FR', {
@@ -492,11 +489,14 @@
             <p class="text-xs text-slate-500">🕒 ${echapper(session.horaires || '')}</p>
           </div>
           ${annulee
-            ? '<span class="bg-red-600 text-white font-bold text-xs px-2.5 py-1 rounded-full">ANNULÉE</span>'
+            ? '<span class="bg-slate-600 text-white font-bold text-[10px] px-2 py-1 rounded-full">ANNULÉE</span>'
             : `<span class="bg-emerald-100 text-emerald-800 font-extrabold text-xs px-2.5 py-1 rounded-full">${confirmes.length} / ${capacite}</span>`}
         </div>
 
-        ${annulee ? '<p class="my-3 rounded-lg bg-red-50 p-3 text-center text-xs font-bold text-red-800">Cette session est annulée.</p>' : ''}
+        ${annulee ? `
+          <p class="my-3 rounded-lg bg-slate-300/70 p-3 text-center text-xs font-bold text-slate-700">
+            Session annulée — inscriptions conservées (${inscrits.length}).
+          </p>` : ''}
 
         ${!annulee && !profil.abonne && avantH24 ? `
           <div class="bg-amber-50 text-amber-900 text-xs font-semibold p-2.5 rounded-xl my-3 border border-amber-200">
@@ -513,22 +513,33 @@
           </div>
           ${mesInvites.length ? `<div class="space-y-2 mt-3">${invitesHtml}</div>` : ''}` : ''}
 
-        <div class="border-t border-slate-100 mt-3 pt-3 flex flex-wrap justify-between items-center gap-2">
-          <button onclick="ouvrirParticipants('${echapper(session.id)}')" class="text-xs font-bold text-blue-700">
+        <div class="border-t border-slate-300 mt-3 pt-3 flex flex-wrap justify-between items-center gap-2">
+          <button onclick="ouvrirParticipants('${echapper(session.id)}')"
+            class="text-xs font-bold text-blue-700">
             👥 Voir les inscrits (${confirmes.length} confirmés / ${attente.length} en attente)
           </button>
 
           ${profil.admin ? `
-            <div class="flex gap-2">
-              <button onclick="ouvrirEdition('${echapper(session.id)}')"
-                class="text-xs font-bold text-blue-800 bg-blue-50 border border-blue-200 px-2.5 py-2 rounded-lg">
-                ✏️ Modifier
-              </button>
-              <button onclick="basculerAnnulation('${echapper(session.id)}')"
-                class="text-xs font-bold ${annulee ? 'text-emerald-800 bg-emerald-50 border-emerald-200' : 'text-red-800 bg-red-50 border-red-200'} px-2.5 py-2 rounded-lg border">
-                ${annulee ? 'Rétablir' : 'Annuler session'}
-              </button>
-            </div>` : ''}
+            <details class="relative">
+              <summary class="cursor-pointer list-none text-[10px] font-semibold text-slate-600 bg-slate-100 border border-slate-300 px-2 py-1 rounded-md">
+                ⚙ Gestion admin
+              </summary>
+              <div class="absolute right-0 bottom-8 z-20 w-36 rounded-lg border border-slate-300 bg-white p-2 shadow-lg space-y-1">
+                <button onclick="ouvrirEdition('${echapper(session.id)}')"
+                  class="w-full text-left text-[10px] font-semibold text-blue-800 hover:bg-blue-50 px-2 py-1.5 rounded">
+                  Modifier jour / heures
+                </button>
+                ${annulee
+                  ? `<button onclick="basculerAnnulation('${echapper(session.id)}', '${numero}')"
+                       class="w-full text-left text-[10px] font-semibold text-emerald-800 hover:bg-emerald-50 px-2 py-1.5 rounded">
+                       Relancer la session
+                     </button>`
+                  : `<button onclick="basculerAnnulation('${echapper(session.id)}', '${numero}')"
+                       class="w-full text-left text-[10px] font-semibold text-red-800 hover:bg-red-50 px-2 py-1.5 rounded">
+                       Annuler la session
+                     </button>`}
+              </div>
+            </details>` : ''}
         </div>`;
 
       container.appendChild(carte);
@@ -614,7 +625,7 @@
   }
 
   function ouvrirEdition(sessionId) {
-    if (!profil.admin) return alert('Connecte-toi au mode Administrateur dans Profil.');
+    if (!profil.admin) return alert('Active le mode Administrateur dans Profil.');
     const session = sessions.find(s => s.id === sessionId);
     if (!session) return alert('Session introuvable.');
 
@@ -627,12 +638,12 @@
     document.getElementById('edition-date').value =
       `${date.getFullYear()}-${deux(date.getMonth() + 1)}-${deux(date.getDate())}`;
 
-    const heures = String(session.horaires || '').match(/(\d{1,2})h(\d{2})\s*-\s*(\d{1,2})h(\d{2})/i);
-    document.getElementById('edition-debut').value = heures
-      ? `${deux(heures[1])}:${heures[2]}`
+    const horaires = String(session.horaires || '').match(/(\d{1,2})h(\d{2})\s*-\s*(\d{1,2})h(\d{2})/i);
+    document.getElementById('edition-debut').value = horaires
+      ? `${deux(horaires[1])}:${horaires[2]}`
       : `${deux(date.getHours())}:${deux(date.getMinutes())}`;
-    document.getElementById('edition-fin').value = heures
-      ? `${deux(heures[3])}:${heures[4]}`
+    document.getElementById('edition-fin').value = horaires
+      ? `${deux(horaires[3])}:${horaires[4]}`
       : '21:30';
 
     document.getElementById('modal-edition').classList.remove('hidden');
@@ -688,11 +699,17 @@
     if (!session) return alert('Session introuvable.');
 
     const annuler = session.statut !== 'annulee';
-    const texte = annuler
-      ? `Annuler « ${session.nom} » ? Les inscriptions seront conservées.`
-      : `Rétablir « ${session.nom} » ?`;
+    const texteConfirmation = annuler ? 'ANNULER' : 'RELANCER';
+    const instruction = annuler
+      ? `Veuillez reconfirmer l’annulation de « ${session.nom} ».\n\nLes inscriptions seront conservées et la session sera grisée.\n\nSaisis ANNULER pour confirmer :`
+      : `Veuillez reconfirmer la relance de « ${session.nom} ».\n\nLes inscriptions existantes seront conservées.\n\nSaisis RELANCER pour confirmer :`;
 
-    if (!confirm(texte)) return;
+    const saisie = prompt(instruction);
+    if (saisie === null) return;
+    if (saisie.trim().toUpperCase() !== texteConfirmation) {
+      alert(`Confirmation incorrecte. La session n’a pas été modifiée.`);
+      return;
+    }
 
     try {
       await appelerFonctionAdmin('set_session_status', {
@@ -700,6 +717,9 @@
         statut: annuler ? 'annulee' : 'ouvert'
       });
       await rechargerTout();
+      alert(annuler
+        ? 'Session annulée. Les inscriptions sont conservées.'
+        : 'Session relancée. Les inscriptions sont conservées.');
     } catch (error) {
       alert('Action impossible : ' + (error.message || error));
     }
@@ -718,8 +738,7 @@
     function ligne(i, index, confirme) {
       const estMonVote = !i.est_invite && memeNom(i.prenom, i.nom, profil.prenom, profil.nom);
       const estMonInvite = i.est_invite &&
-        String(i.invite_par_nom || '').trim().toLowerCase() ===
-        `${profil.prenom} ${profil.nom}`.trim().toLowerCase();
+        String(i.invite_par_nom || '').trim().toLowerCase() === `${profil.prenom} ${profil.nom}`.trim().toLowerCase();
       const peutAnnuler = profil.admin || estMonVote || estMonInvite;
 
       return `

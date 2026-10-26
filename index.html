@@ -9,6 +9,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
+
 <body class="bg-slate-100 font-sans antialiased pb-10">
 
   <header class="bg-white border-b border-slate-200 px-4 py-3 sticky top-0 z-30 shadow-sm flex items-center justify-between">
@@ -21,52 +22,111 @@
         <p class="text-[11px] text-slate-500">Joueur : <b id="joueur-entete"></b></p>
       </div>
     </div>
-    <button onclick="ouvrirProfil()" class="bg-slate-100 text-slate-700 font-semibold text-xs px-3 py-2 rounded-lg border border-slate-300">
+    <button onclick="ouvrirProfil()"
+      class="bg-slate-100 text-slate-700 font-semibold text-xs px-3 py-2 rounded-lg border border-slate-300">
       Profil
     </button>
   </header>
 
   <div id="message-erreur" class="hidden m-4 rounded-xl border border-red-300 bg-red-50 p-4 text-sm font-semibold text-red-800"></div>
-  <div id="message-info" class="hidden m-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900"></div>
 
   <main id="sessions-container" class="max-w-md mx-auto p-4 space-y-4"></main>
 
+  <!-- PROFIL -->
   <div id="modal-profil" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-xl">
+    <div class="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-xl max-h-[90vh] overflow-y-auto">
       <h2 class="font-extrabold text-slate-900 text-lg">Mon profil</h2>
+
       <label class="block text-xs font-bold text-slate-700">
         Prénom
-        <input id="profil-prenom" class="w-full mt-1 border border-slate-300 rounded-lg p-2.5 text-sm">
+        <input id="profil-prenom" type="text"
+          class="w-full mt-1 border border-slate-300 rounded-lg p-2.5 text-sm">
       </label>
+
       <label class="block text-xs font-bold text-slate-700">
         Nom
-        <input id="profil-nom" class="w-full mt-1 border border-slate-300 rounded-lg p-2.5 text-sm">
+        <input id="profil-nom" type="text"
+          class="w-full mt-1 border border-slate-300 rounded-lg p-2.5 text-sm">
       </label>
-      <div class="flex gap-2">
-        <button onclick="fermerProfil()" class="flex-1 bg-slate-100 text-slate-700 font-bold py-2.5 rounded-lg text-sm">Fermer</button>
-        <button onclick="sauvegarderProfil()" class="flex-1 bg-blue-600 text-white font-bold py-2.5 rounded-lg text-sm">Enregistrer</button>
+
+      <label class="flex items-center justify-between gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+        <span>
+          <span class="block text-sm font-bold text-emerald-900">Abonné Saison</span>
+          <span class="block text-xs text-emerald-700">Vote direct en place confirmée</span>
+        </span>
+        <input id="profil-abonne" type="checkbox" class="w-5 h-5 accent-emerald-600">
+      </label>
+
+      <div class="border-t border-slate-100 pt-3">
+        <label class="flex items-center justify-between gap-3">
+          <span class="text-sm font-bold text-slate-700">Mode Administrateur</span>
+          <input id="profil-admin" type="checkbox" onchange="afficherZoneMotDePasse()"
+            class="w-5 h-5 accent-blue-600">
+        </label>
+
+        <div id="zone-mot-de-passe" class="hidden mt-3">
+          <label for="profil-mot-de-passe" class="block text-xs font-bold text-slate-700">
+            Mot de passe Administrateur
+          </label>
+          <div class="flex mt-1">
+            <input id="profil-mot-de-passe" type="password" autocomplete="current-password"
+              placeholder="Entrez le mot de passe"
+              class="min-w-0 flex-1 border border-amber-300 bg-amber-50 rounded-l-lg p-2.5 text-sm">
+            <button type="button" onclick="basculerVisibiliteMotDePasse()"
+              class="border border-l-0 border-amber-300 bg-amber-100 px-3 rounded-r-lg text-xs font-bold text-amber-900">
+              Afficher
+            </button>
+          </div>
+          <p class="mt-1 text-[11px] text-slate-500">
+            Le mot de passe est vérifié par la fonction sécurisée Supabase.
+          </p>
+        </div>
+      </div>
+
+      <div class="flex gap-2 pt-1">
+        <button onclick="fermerProfil()"
+          class="flex-1 bg-slate-100 text-slate-700 font-bold py-2.5 rounded-lg text-sm">
+          Fermer
+        </button>
+        <button id="bouton-enregistrer-profil" onclick="sauvegarderProfil()"
+          class="flex-1 bg-blue-600 text-white font-bold py-2.5 rounded-lg text-sm">
+          Enregistrer
+        </button>
       </div>
     </div>
   </div>
 
+  <!-- INVITÉ -->
   <div id="modal-invite" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-xl">
       <h2 class="font-extrabold text-slate-900 text-lg">Inscrire un invité</h2>
+
       <label class="block text-xs font-bold text-slate-700">
         Prénom de l’invité
-        <input id="invite-prenom" class="w-full mt-1 border border-slate-300 rounded-lg p-2.5 text-sm">
+        <input id="invite-prenom" type="text"
+          class="w-full mt-1 border border-slate-300 rounded-lg p-2.5 text-sm">
       </label>
+
       <label class="block text-xs font-bold text-slate-700">
         Nom de l’invité
-        <input id="invite-nom" class="w-full mt-1 border border-slate-300 rounded-lg p-2.5 text-sm">
+        <input id="invite-nom" type="text"
+          class="w-full mt-1 border border-slate-300 rounded-lg p-2.5 text-sm">
       </label>
+
       <div class="flex gap-2">
-        <button onclick="fermerInvite()" class="flex-1 bg-slate-100 text-slate-700 font-bold py-2.5 rounded-lg text-sm">Annuler</button>
-        <button onclick="inscrireInvite()" class="flex-1 bg-blue-600 text-white font-bold py-2.5 rounded-lg text-sm">Inscrire</button>
+        <button onclick="fermerInvite()"
+          class="flex-1 bg-slate-100 text-slate-700 font-bold py-2.5 rounded-lg text-sm">
+          Annuler
+        </button>
+        <button onclick="inscrireInvite()"
+          class="flex-1 bg-blue-600 text-white font-bold py-2.5 rounded-lg text-sm">
+          Inscrire
+        </button>
       </div>
     </div>
   </div>
 
+  <!-- PARTICIPANTS -->
   <div id="modal-participants" class="hidden fixed inset-0 z-50 bg-black/50 flex flex-col justify-end sm:justify-center p-0 sm:p-4">
     <div class="bg-white rounded-t-2xl sm:rounded-2xl max-h-[85vh] flex flex-col w-full max-w-md mx-auto overflow-hidden">
       <div class="p-4 border-b flex justify-between items-center bg-slate-50">
@@ -81,25 +141,31 @@
   </div>
 
 <script>
-  // Ces deux valeurs doivent correspondre au même projet Supabase.
   const SUPABASE_URL = 'https://sgkomdvgocrmsrmcktnn.supabase.co';
   const SUPABASE_ANON_KEY = 'sb_publishable_5MB-vD9ZvTa_gfHsitfOng__XVP5PL5';
+  const ADMIN_FUNCTION_NAME = 'admin-actions';
 
   const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   let profil = {
     prenom: localStorage.getItem('blr_prenom') || 'Dave',
-    nom: localStorage.getItem('blr_nom') || 'Govinden'
+    nom: localStorage.getItem('blr_nom') || 'Govinden',
+    abonne: localStorage.getItem('blr_abonne') === 'true',
+    admin: sessionStorage.getItem('blr_admin_session') === 'true'
   };
 
   let sessions = [];
   let inscriptions = [];
   let sessionInviteId = null;
 
-  function echapper(v) {
-    return String(v ?? '').replace(/[&<>"']/g, c => ({
-      '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
-    }[c]));
+  function echapper(valeur) {
+    return String(valeur ?? '').replace(/[&<>"']/g, caractere => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    }[caractere]));
   }
 
   function memeNom(p1, n1, p2, n2) {
@@ -107,42 +173,33 @@
       && String(n1 || '').trim().toLowerCase() === String(n2 || '').trim().toLowerCase();
   }
 
-  function afficherErreur(texte) {
-    const el = document.getElementById('message-erreur');
-    el.textContent = texte;
-    el.classList.remove('hidden');
+  function afficherErreur(message) {
+    const element = document.getElementById('message-erreur');
+    element.textContent = message;
+    element.classList.remove('hidden');
   }
 
   function cacherErreur() {
     document.getElementById('message-erreur').classList.add('hidden');
   }
 
-  function datesProchainesSessions() {
+  function prochaineDate(jourSemaine, heure, minute) {
     const maintenant = new Date();
-
-    function prochaineDate(jourSemaine, heure, minute) {
-      const d = new Date(maintenant);
-      let diff = (jourSemaine - d.getDay() + 7) % 7;
-      d.setDate(d.getDate() + diff);
-      d.setHours(heure, minute, 0, 0);
-      if (d <= maintenant) d.setDate(d.getDate() + 7);
-      return d;
-    }
-
-    return {
-      mardi: prochaineDate(2, 19, 0),
-      jeudi: prochaineDate(4, 19, 30)
-    };
+    const date = new Date(maintenant);
+    let difference = (jourSemaine - date.getDay() + 7) % 7;
+    date.setDate(date.getDate() + difference);
+    date.setHours(heure, minute, 0, 0);
+    if (date <= maintenant) date.setDate(date.getDate() + 7);
+    return date;
   }
 
   function sessionsLocales() {
-    const dates = datesProchainesSessions();
     return [
       {
         id: 'session-mardi',
         nom: 'Mardi — Session 1',
         horaires: '19h00 - 21h30',
-        debut_date: dates.mardi.toISOString(),
+        debut_date: prochaineDate(2, 19, 0).toISOString(),
         max_capacity: 22,
         statut: 'ouvert'
       },
@@ -150,7 +207,7 @@
         id: 'session-jeudi',
         nom: 'Jeudi — Session 2',
         horaires: '19h30 - 21h30',
-        debut_date: dates.jeudi.toISOString(),
+        debut_date: prochaineDate(4, 19, 30).toISOString(),
         max_capacity: 22,
         statut: 'ouvert'
       }
@@ -164,9 +221,7 @@
 
     try {
       const { data, error } = await supabaseClient
-        .from('sessions')
-        .select('*')
-        .order('debut_date', { ascending: true });
+        .from('sessions').select('*').order('debut_date', { ascending: true });
 
       if (error) throw error;
       if (data && data.length) sessions = data;
@@ -179,16 +234,14 @@
         .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' }, rechargerTout)
         .subscribe();
     } catch (error) {
-      afficherErreur(
-        'Supabase refuse la connexion : ' + (error.message || error) +
-        '. Vérifie que l’URL du projet et la Publishable key viennent du même projet.'
-      );
+      afficherErreur('Erreur Supabase : ' + (error.message || error));
     }
   }
 
   async function rechargerTout() {
     try {
-      const { data, error } = await supabaseClient.from('sessions').select('*').order('debut_date');
+      const { data, error } = await supabaseClient
+        .from('sessions').select('*').order('debut_date', { ascending: true });
       if (error) throw error;
       if (data && data.length) sessions = data;
       await rechargerInscriptions();
@@ -213,10 +266,15 @@
     document.getElementById('joueur-entete').textContent = `${profil.prenom} ${profil.nom}`;
     document.getElementById('profil-prenom').value = profil.prenom;
     document.getElementById('profil-nom').value = profil.nom;
+    document.getElementById('profil-abonne').checked = profil.abonne;
+    document.getElementById('profil-admin').checked = profil.admin;
+    afficherZoneMotDePasse();
   }
 
   function ouvrirProfil() {
     mettreAJourProfil();
+    document.getElementById('profil-mot-de-passe').value = '';
+    document.getElementById('profil-mot-de-passe').type = 'password';
     document.getElementById('modal-profil').classList.remove('hidden');
   }
 
@@ -224,26 +282,81 @@
     document.getElementById('modal-profil').classList.add('hidden');
   }
 
-  function sauvegarderProfil() {
+  function afficherZoneMotDePasse() {
+    const coche = document.getElementById('profil-admin').checked;
+    const zone = document.getElementById('zone-mot-de-passe');
+    if (coche && !profil.admin) zone.classList.remove('hidden');
+    else zone.classList.add('hidden');
+  }
+
+  function basculerVisibiliteMotDePasse() {
+    const input = document.getElementById('profil-mot-de-passe');
+    const bouton = input.parentElement.querySelector('button');
+    const afficher = input.type === 'password';
+    input.type = afficher ? 'text' : 'password';
+    bouton.textContent = afficher ? 'Masquer' : 'Afficher';
+  }
+
+  async function verifierMotDePasseAdmin(motDePasse) {
+    const { data, error } = await supabaseClient.functions.invoke(ADMIN_FUNCTION_NAME, {
+      body: {
+        action: 'verify_admin',
+        password: motDePasse
+      }
+    });
+
+    if (error) throw error;
+    if (!data || data.authorized !== true) {
+      throw new Error('Mot de passe administrateur incorrect.');
+    }
+  }
+
+  async function sauvegarderProfil() {
     const prenom = document.getElementById('profil-prenom').value.trim();
     const nom = document.getElementById('profil-nom').value.trim();
+    const abonne = document.getElementById('profil-abonne').checked;
+    const adminCoche = document.getElementById('profil-admin').checked;
+    const bouton = document.getElementById('bouton-enregistrer-profil');
+
     if (!prenom || !nom) return alert('Prénom et nom obligatoires.');
 
-    profil = { prenom, nom };
-    localStorage.setItem('blr_prenom', prenom);
-    localStorage.setItem('blr_nom', nom);
-    mettreAJourProfil();
-    fermerProfil();
-    afficherSessions();
+    bouton.disabled = true;
+    bouton.textContent = 'Vérification…';
+
+    try {
+      if (adminCoche && !profil.admin) {
+        const motDePasse = document.getElementById('profil-mot-de-passe').value;
+        if (!motDePasse) throw new Error('Saisis le mot de passe administrateur.');
+        await verifierMotDePasseAdmin(motDePasse);
+        sessionStorage.setItem('blr_admin_session', 'true');
+      }
+
+      if (!adminCoche) {
+        sessionStorage.removeItem('blr_admin_session');
+      }
+
+      profil = { prenom, nom, abonne, admin: adminCoche };
+
+      localStorage.setItem('blr_prenom', prenom);
+      localStorage.setItem('blr_nom', nom);
+      localStorage.setItem('blr_abonne', String(abonne));
+
+      mettreAJourProfil();
+      fermerProfil();
+      afficherSessions();
+    } catch (error) {
+      alert(error.message || 'La vérification administrateur a échoué.');
+      if (adminCoche && !profil.admin) {
+        document.getElementById('profil-admin').checked = false;
+        afficherZoneMotDePasse();
+      }
+    } finally {
+      bouton.disabled = false;
+      bouton.textContent = 'Enregistrer';
+    }
   }
 
-  function dateCourte(value) {
-    const d = new Date(value);
-    if (isNaN(d.getTime())) return '';
-    return d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'short' });
-  }
-
-  function listerPourSession(sessionId) {
+  function inscritsPour(sessionId) {
     return inscriptions.filter(i => i && i.session_id === sessionId);
   }
 
@@ -252,7 +365,7 @@
     container.innerHTML = '';
 
     sessions.forEach(session => {
-      const inscrits = listerPourSession(session.id);
+      const inscrits = inscritsPour(session.id);
       const confirmes = inscrits.filter(i => i.statut === 'confirmed');
       const attente = inscrits
         .filter(i => i.statut === 'waitlisted')
@@ -262,40 +375,26 @@
         !i.est_invite && memeNom(i.prenom, i.nom, profil.prenom, profil.nom)
       );
 
+      const nomParrain = `${profil.prenom} ${profil.nom}`.trim().toLowerCase();
       const mesInvites = inscrits.filter(i =>
         i.est_invite &&
-        String(i.invite_par_nom || '').trim().toLowerCase() === `${profil.prenom} ${profil.nom}`.trim().toLowerCase()
+        String(i.invite_par_nom || '').trim().toLowerCase() === nomParrain
       );
 
       const capacite = Number(session.max_capacity) || 22;
       const plein = confirmes.length >= capacite;
-      const date = new Date(session.debut_date);
-      const heuresAvant = (date.getTime() - Date.now()) / 3600000;
+      const heuresAvant = (new Date(session.debut_date).getTime() - Date.now()) / 3600000;
       const avantH24 = heuresAvant > 24;
 
-      const carte = document.createElement('section');
-      carte.className = 'bg-white rounded-2xl p-4 shadow-sm border border-slate-200';
-
-      let boutons = '';
-      if (monVote) {
-        boutons += `
-          <button onclick="annulerInscription('${echapper(monVote.id)}')"
-            class="flex-1 bg-red-600 text-white font-extrabold text-xs py-3 rounded-xl">
-            Annuler ma place (${monVote.statut === 'confirmed' ? 'Confirmée' : 'Attente'})
-          </button>`;
-      } else {
-        boutons += `
-          <button onclick="participer('${echapper(session.id)}')"
-            class="flex-1 ${plein ? 'bg-orange-600' : 'bg-blue-600'} text-white font-extrabold text-xs py-3 rounded-xl">
-            ${plein ? 'Rejoindre la file d’attente' : (avantH24 ? 'Rejoindre la file d’attente (H-24)' : 'Participer')}
-          </button>`;
-      }
-
-      boutons += `
-        <button onclick="ouvrirInvite('${echapper(session.id)}')"
-          class="bg-slate-100 text-slate-700 font-bold text-xs px-3 py-3 rounded-xl border border-slate-300">
-          + Invité
-        </button>`;
+      const boutonVote = monVote
+        ? `<button onclick="annulerInscription('${echapper(monVote.id)}')"
+             class="flex-1 bg-red-600 text-white font-extrabold text-xs py-3 rounded-xl">
+             Annuler ma place (${monVote.statut === 'confirmed' ? 'Confirmée' : 'Attente'})
+           </button>`
+        : `<button onclick="participer('${echapper(session.id)}')"
+             class="flex-1 ${plein ? 'bg-orange-600' : 'bg-blue-600'} text-white font-extrabold text-xs py-3 rounded-xl">
+             ${profil.abonne && !plein ? 'Participer (Confirmé direct)' : (plein ? 'Rejoindre la file d’attente' : (avantH24 ? 'Rejoindre la file d’attente (H-24)' : 'Participer'))}
+           </button>`;
 
       const invitesHtml = mesInvites.map(invite => `
         <button onclick="annulerInscription('${echapper(invite.id)}')"
@@ -304,12 +403,16 @@
           (${invite.statut === 'confirmed' ? 'confirmé' : 'en attente'})
         </button>`).join('');
 
+      const carte = document.createElement('section');
+      carte.className = 'bg-white rounded-2xl p-4 shadow-sm border border-slate-200';
       carte.innerHTML = `
         <div class="flex justify-between items-start mb-3">
           <div>
             <h2 class="font-extrabold text-base text-slate-900">
               ${echapper(session.nom)}
-              <span class="text-xs text-slate-500 font-normal">(${dateCourte(session.debut_date)})</span>
+              <span class="text-xs text-slate-500 font-normal">
+                (${new Date(session.debut_date).toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'short' })})
+              </span>
             </h2>
             <p class="text-xs text-slate-500">🕒 ${echapper(session.horaires || '')}</p>
           </div>
@@ -317,12 +420,22 @@
             ${confirmes.length} / ${capacite}
           </span>
         </div>
-        ${avantH24 ? `
+
+        ${!profil.abonne && avantH24 ? `
           <div class="bg-amber-50 text-amber-900 text-xs font-semibold p-2.5 rounded-xl my-3 border border-amber-200">
-            ⏳ Règle H-24 : les votes non abonnés restent en attente jusqu’à la confirmation.
+            ⏳ Règle H-24 : votre vote reste en attente jusqu’à la confirmation.
           </div>` : ''}
-        <div class="flex gap-2 mt-3">${boutons}</div>
+
+        <div class="flex gap-2 mt-3">
+          ${boutonVote}
+          <button onclick="ouvrirInvite('${echapper(session.id)}')"
+            class="bg-slate-100 text-slate-700 font-bold text-xs px-3 py-3 rounded-xl border border-slate-300">
+            + Invité
+          </button>
+        </div>
+
         ${mesInvites.length ? `<div class="space-y-2 mt-3">${invitesHtml}</div>` : ''}
+
         <div class="border-t border-slate-100 mt-3 pt-3">
           <button onclick="ouvrirParticipants('${echapper(session.id)}')"
             class="text-xs font-bold text-blue-700">
@@ -337,13 +450,12 @@
     if (!profil.prenom || !profil.nom) return ouvrirProfil();
 
     const session = sessions.find(s => s.id === sessionId);
-    const inscrits = listerPourSession(sessionId);
-    const confirmes = inscrits.filter(i => i.statut === 'confirmed');
+    const confirmes = inscritsPour(sessionId).filter(i => i.statut === 'confirmed');
     const avantH24 = session && (new Date(session.debut_date).getTime() - Date.now()) > 24 * 3600000;
 
-    const statut = confirmes.length >= (Number(session?.max_capacity) || 22) || avantH24
-      ? 'waitlisted'
-      : 'confirmed';
+    let statut = 'confirmed';
+    if (confirmes.length >= (Number(session?.max_capacity) || 22)) statut = 'waitlisted';
+    else if (!profil.abonne && avantH24) statut = 'waitlisted';
 
     const { error } = await supabaseClient.from('inscriptions').insert([{
       session_id: sessionId,
@@ -351,7 +463,7 @@
       nom: profil.nom,
       est_invite: false,
       invite_par_nom: null,
-      est_abonne: false,
+      est_abonne: profil.abonne,
       statut,
       date_demande: Date.now(),
       reconfirme: false
@@ -378,7 +490,7 @@
     if (!prenom || !nom) return alert('Prénom et nom de l’invité obligatoires.');
 
     const session = sessions.find(s => s.id === sessionInviteId);
-    const confirmes = listerPourSession(sessionInviteId).filter(i => i.statut === 'confirmed');
+    const confirmes = inscritsPour(sessionInviteId).filter(i => i.statut === 'confirmed');
     const avantH24 = session && (new Date(session.debut_date).getTime() - Date.now()) > 24 * 3600000;
     const statut = confirmes.length >= (Number(session?.max_capacity) || 22) || avantH24
       ? 'waitlisted'
@@ -403,20 +515,18 @@
 
   async function annulerInscription(id) {
     const vote = inscriptions.find(i => String(i.id) === String(id));
-    if (!vote) return alert('Vote introuvable. Recharge la page et réessaie.');
+    if (!vote) return alert('Vote introuvable. Recharge la page puis réessaie.');
 
-    const nom = `${vote.prenom} ${vote.nom}`;
-    if (!confirm(`Annuler le vote de ${nom} ?`)) return;
+    if (!confirm(`Annuler le vote de ${vote.prenom} ${vote.nom} ?`)) return;
 
     const { error } = await supabaseClient.from('inscriptions').delete().eq('id', id);
     if (error) return alert('Erreur lors de l’annulation : ' + error.message);
-
     await rechargerInscriptions();
   }
 
   function ouvrirParticipants(sessionId) {
     const session = sessions.find(s => s.id === sessionId);
-    const inscrits = listerPourSession(sessionId);
+    const inscrits = inscritsPour(sessionId);
     const confirmes = inscrits.filter(i => i.statut === 'confirmed');
     const attente = inscrits
       .filter(i => i.statut === 'waitlisted')
@@ -424,28 +534,25 @@
 
     document.getElementById('participants-titre').textContent = session?.nom || 'Participants';
 
-    function ligne(i, index, estConfirme) {
+    function ligne(i, index, confirme) {
       const estMonVote = !i.est_invite && memeNom(i.prenom, i.nom, profil.prenom, profil.nom);
       const estMonInvite = i.est_invite &&
         String(i.invite_par_nom || '').trim().toLowerCase() === `${profil.prenom} ${profil.nom}`.trim().toLowerCase();
-      const peutAnnuler = estMonVote || estMonInvite;
-
+      const peutAnnuler = profil.admin || estMonVote || estMonInvite;
       const horodatage = i.date_demande
         ? new Date(Number(i.date_demande)).toLocaleString('fr-FR')
         : '';
 
       return `
-        <div class="flex justify-between items-center text-xs p-3 ${estConfirme ? 'bg-slate-50 border-slate-200' : 'bg-amber-50 border-amber-200'} rounded-xl border">
+        <div class="flex justify-between items-center text-xs p-3 ${confirme ? 'bg-slate-50 border-slate-200' : 'bg-amber-50 border-amber-200'} rounded-xl border">
           <div>
-            <b>${estConfirme ? index + 1 : '#' + (index + 1)}. ${echapper(i.prenom)} ${echapper(i.nom)}</b>
+            <b>${confirme ? index + 1 : '#' + (index + 1)}. ${echapper(i.prenom)} ${echapper(i.nom)}</b>
             ${i.est_invite ? `<span class="text-slate-500">(invité par ${echapper(i.invite_par_nom || '')})</span>` : ''}
             <p class="text-[10px] text-slate-500 mt-1">🕒 ${horodatage}</p>
           </div>
           ${peutAnnuler ? `
             <button onclick="annulerInscription('${echapper(i.id)}')"
-              class="text-red-700 font-bold bg-red-100 px-2 py-1 rounded-lg">
-              Annuler
-            </button>` : ''}
+              class="text-red-700 font-bold bg-red-100 px-2 py-1 rounded-lg">Annuler</button>` : ''}
         </div>`;
     }
 

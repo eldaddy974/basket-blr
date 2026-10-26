@@ -22,7 +22,6 @@
         <p class="text-[11px] text-slate-500">Joueur : <b id="joueur-entete"></b></p>
       </div>
     </div>
-
     <button onclick="ouvrirProfil()"
       class="bg-slate-100 text-slate-700 font-semibold text-xs px-3 py-2 rounded-lg border border-slate-300">
       Profil
@@ -40,14 +39,12 @@
 
       <label class="block text-xs font-bold text-slate-700">
         Prénom
-        <input id="profil-prenom" type="text"
-          class="w-full mt-1 border border-slate-300 rounded-lg p-2.5 text-sm">
+        <input id="profil-prenom" type="text" class="w-full mt-1 border border-slate-300 rounded-lg p-2.5 text-sm">
       </label>
 
       <label class="block text-xs font-bold text-slate-700">
         Nom
-        <input id="profil-nom" type="text"
-          class="w-full mt-1 border border-slate-300 rounded-lg p-2.5 text-sm">
+        <input id="profil-nom" type="text" class="w-full mt-1 border border-slate-300 rounded-lg p-2.5 text-sm">
       </label>
 
       <label class="flex items-center justify-between gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
@@ -61,8 +58,7 @@
       <div class="border-t border-slate-100 pt-3">
         <label class="flex items-center justify-between gap-3">
           <span class="text-sm font-bold text-slate-700">Mode Administrateur</span>
-          <input id="profil-admin" type="checkbox" onchange="afficherZoneMotDePasse()"
-            class="w-5 h-5 accent-blue-600">
+          <input id="profil-admin" type="checkbox" onchange="afficherZoneMotDePasse()" class="w-5 h-5 accent-blue-600">
         </label>
 
         <div id="zone-mot-de-passe" class="hidden mt-3">
@@ -84,8 +80,7 @@
       <p id="profil-message" class="hidden text-xs font-semibold rounded-lg p-2"></p>
 
       <div class="flex gap-2 pt-1">
-        <button onclick="fermerProfil()"
-          class="flex-1 bg-slate-100 text-slate-700 font-bold py-2.5 rounded-lg text-sm">
+        <button onclick="fermerProfil()" class="flex-1 bg-slate-100 text-slate-700 font-bold py-2.5 rounded-lg text-sm">
           Fermer
         </button>
         <button id="bouton-enregistrer-profil" onclick="sauvegarderProfil()"
@@ -100,28 +95,46 @@
   <div id="modal-invite" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-xl">
       <h2 class="font-extrabold text-slate-900 text-lg">Inscrire un invité</h2>
-
       <label class="block text-xs font-bold text-slate-700">
         Prénom de l’invité
-        <input id="invite-prenom" type="text"
-          class="w-full mt-1 border border-slate-300 rounded-lg p-2.5 text-sm">
+        <input id="invite-prenom" type="text" class="w-full mt-1 border border-slate-300 rounded-lg p-2.5 text-sm">
       </label>
-
       <label class="block text-xs font-bold text-slate-700">
         Nom de l’invité
-        <input id="invite-nom" type="text"
-          class="w-full mt-1 border border-slate-300 rounded-lg p-2.5 text-sm">
+        <input id="invite-nom" type="text" class="w-full mt-1 border border-slate-300 rounded-lg p-2.5 text-sm">
+      </label>
+      <div class="flex gap-2">
+        <button onclick="fermerInvite()" class="flex-1 bg-slate-100 text-slate-700 font-bold py-2.5 rounded-lg text-sm">Annuler</button>
+        <button onclick="inscrireInvite()" class="flex-1 bg-blue-600 text-white font-bold py-2.5 rounded-lg text-sm">Inscrire</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODIFIER UNE SESSION -->
+  <div id="modal-edition" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-xl">
+      <h2 class="font-extrabold text-slate-900 text-lg">Modifier la session</h2>
+      <p id="edition-nom-session" class="text-sm text-slate-600"></p>
+
+      <label class="block text-xs font-bold text-slate-700">
+        Jour et date
+        <input id="edition-date" type="date" class="w-full mt-1 border border-slate-300 rounded-lg p-2.5 text-sm">
       </label>
 
+      <div class="grid grid-cols-2 gap-3">
+        <label class="block text-xs font-bold text-slate-700">
+          Heure de début
+          <input id="edition-debut" type="time" class="w-full mt-1 border border-slate-300 rounded-lg p-2.5 text-sm">
+        </label>
+        <label class="block text-xs font-bold text-slate-700">
+          Heure de fin
+          <input id="edition-fin" type="time" class="w-full mt-1 border border-slate-300 rounded-lg p-2.5 text-sm">
+        </label>
+      </div>
+
       <div class="flex gap-2">
-        <button onclick="fermerInvite()"
-          class="flex-1 bg-slate-100 text-slate-700 font-bold py-2.5 rounded-lg text-sm">
-          Annuler
-        </button>
-        <button onclick="inscrireInvite()"
-          class="flex-1 bg-blue-600 text-white font-bold py-2.5 rounded-lg text-sm">
-          Inscrire
-        </button>
+        <button onclick="fermerEdition()" class="flex-1 bg-slate-100 text-slate-700 font-bold py-2.5 rounded-lg text-sm">Annuler</button>
+        <button onclick="enregistrerModificationSession()" class="flex-1 bg-blue-600 text-white font-bold py-2.5 rounded-lg text-sm">Enregistrer</button>
       </div>
     </div>
   </div>
@@ -151,21 +164,19 @@
     prenom: localStorage.getItem('blr_prenom') || 'Dave',
     nom: localStorage.getItem('blr_nom') || 'Govinden',
     abonne: localStorage.getItem('blr_abonne') === 'true',
-    admin: sessionStorage.getItem('blr_admin_session') === 'true'
+    admin: false
   };
 
+  let motDePasseAdminEnMemoire = '';
   let sessions = [];
   let inscriptions = [];
   let sessionInviteId = null;
+  let sessionEditionId = null;
 
   function echapper(valeur) {
-    return String(valeur ?? '').replace(/[&<>"']/g, caractere => ({
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      '"': '&quot;',
-      "'": '&#39;'
-    }[caractere]));
+    return String(valeur ?? '').replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
   }
 
   function memeNom(p1, n1, p2, n2) {
@@ -174,9 +185,9 @@
   }
 
   function afficherErreur(message) {
-    const element = document.getElementById('message-erreur');
-    element.textContent = message;
-    element.classList.remove('hidden');
+    const el = document.getElementById('message-erreur');
+    el.textContent = message;
+    el.classList.remove('hidden');
   }
 
   function cacherErreur() {
@@ -187,7 +198,6 @@
     if (!valeur) return '';
     const date = new Date(Number(valeur));
     if (isNaN(date.getTime())) return '';
-
     return date.toLocaleString('fr-FR', {
       weekday: 'long',
       day: '2-digit',
@@ -236,10 +246,7 @@
 
     try {
       const { data, error } = await supabaseClient
-        .from('sessions')
-        .select('*')
-        .order('debut_date', { ascending: true });
-
+        .from('sessions').select('*').order('debut_date', { ascending: true });
       if (error) throw error;
       if (data && data.length) sessions = data;
 
@@ -258,10 +265,7 @@
   async function rechargerTout() {
     try {
       const { data, error } = await supabaseClient
-        .from('sessions')
-        .select('*')
-        .order('debut_date', { ascending: true });
-
+        .from('sessions').select('*').order('debut_date', { ascending: true });
       if (error) throw error;
       if (data && data.length) sessions = data;
       await rechargerInscriptions();
@@ -304,37 +308,39 @@
   }
 
   function afficherZoneMotDePasse() {
-    const coche = document.getElementById('profil-admin').checked;
-    const zone = document.getElementById('zone-mot-de-passe');
-    if (coche && !profil.admin) zone.classList.remove('hidden');
-    else zone.classList.add('hidden');
+    const afficher = document.getElementById('profil-admin').checked && !profil.admin;
+    document.getElementById('zone-mot-de-passe').classList.toggle('hidden', !afficher);
   }
 
   function basculerVisibiliteMotDePasse() {
     const input = document.getElementById('profil-mot-de-passe');
     const bouton = input.parentElement.querySelector('button');
-    const afficher = input.type === 'password';
-    input.type = afficher ? 'text' : 'password';
-    bouton.textContent = afficher ? 'Masquer' : 'Afficher';
+    const visible = input.type === 'password';
+    input.type = visible ? 'text' : 'password';
+    bouton.textContent = visible ? 'Masquer' : 'Afficher';
   }
 
   function afficherMessageProfil(texte, erreur = false) {
-    const element = document.getElementById('profil-message');
-    element.textContent = texte;
-    element.className = erreur
+    const el = document.getElementById('profil-message');
+    el.textContent = texte;
+    el.className = erreur
       ? 'text-xs font-semibold rounded-lg p-2 bg-red-50 text-red-800'
       : 'text-xs font-semibold rounded-lg p-2 bg-emerald-50 text-emerald-800';
   }
 
-  async function activerModeAdmin(motDePasse) {
+  async function appelerFonctionAdmin(action, donnees = {}) {
     const { data, error } = await supabaseClient.functions.invoke(ADMIN_FUNCTION_NAME, {
-      body: { action: 'verify_admin', password: motDePasse }
+      body: {
+        action,
+        password: motDePasseAdminEnMemoire,
+        ...donnees
+      }
     });
 
     if (error) throw error;
-    if (!data || data.authorized !== true) {
-      throw new Error('Mot de passe administrateur incorrect.');
-    }
+    if (data?.error) throw new Error(data.error);
+    if (data?.authorized === false) throw new Error('Mot de passe administrateur incorrect.');
+    return data;
   }
 
   async function sauvegarderProfil() {
@@ -348,36 +354,36 @@
       return;
     }
 
-    // Le profil classique et l'abonnement sont enregistrés tout de suite.
+    // Ces données sont sauvegardées même si l'activation admin échoue.
     profil.prenom = prenom;
     profil.nom = nom;
     profil.abonne = abonne;
-
     localStorage.setItem('blr_prenom', prenom);
     localStorage.setItem('blr_nom', nom);
     localStorage.setItem('blr_abonne', String(abonne));
 
-    // Une erreur de mot de passe admin ne bloque plus l'enregistrement du profil.
-    mettreAJourProfil();
-    afficherSessions();
-
     if (!adminCoche) {
       profil.admin = false;
-      sessionStorage.removeItem('blr_admin_session');
+      motDePasseAdminEnMemoire = '';
       mettreAJourProfil();
       afficherSessions();
       afficherMessageProfil('Profil enregistré.');
       return;
     }
 
-    if (profil.admin) {
+    if (profil.admin && motDePasseAdminEnMemoire) {
+      mettreAJourProfil();
+      afficherSessions();
       afficherMessageProfil('Profil enregistré. Mode Administrateur actif.');
       return;
     }
 
     const motDePasse = document.getElementById('profil-mot-de-passe').value;
     if (!motDePasse) {
-      document.getElementById('profil-admin').checked = false;
+      profil.admin = false;
+      mettreAJourProfil();
+      afficherSessions();
+      document.getElementById('profil-admin').checked = true;
       afficherZoneMotDePasse();
       afficherMessageProfil('Profil enregistré. Saisis le mot de passe pour activer le mode Administrateur.', true);
       return;
@@ -387,23 +393,28 @@
     bouton.disabled = true;
     bouton.textContent = 'Vérification…';
 
+    // Garder le mot de passe uniquement en mémoire pendant cette visite.
+    motDePasseAdminEnMemoire = motDePasse;
+
     try {
-      await activerModeAdmin(motDePasse);
+      const resultat = await appelerFonctionAdmin('verify_admin');
+      if (resultat?.authorized !== true) {
+        throw new Error('La fonction admin-actions n’a pas confirmé le mot de passe.');
+      }
+
       profil.admin = true;
-      sessionStorage.setItem('blr_admin_session', 'true');
       mettreAJourProfil();
       afficherSessions();
       afficherMessageProfil('Profil enregistré. Mode Administrateur activé.');
     } catch (error) {
+      motDePasseAdminEnMemoire = '';
       profil.admin = false;
-      sessionStorage.removeItem('blr_admin_session');
-      document.getElementById('profil-admin').checked = false;
-      afficherZoneMotDePasse();
       mettreAJourProfil();
       afficherSessions();
+      document.getElementById('profil-admin').checked = false;
+      afficherZoneMotDePasse();
       afficherMessageProfil(
-        'Profil enregistré, mais le mode Administrateur n’a pas été activé : ' +
-        (error.message || error),
+        'Profil enregistré, mais le mode Administrateur n’a pas été activé : ' + (error.message || error),
         true
       );
     } finally {
@@ -433,26 +444,28 @@
 
       const nomParrain = `${profil.prenom} ${profil.nom}`.trim().toLowerCase();
       const mesInvites = inscrits.filter(i =>
-        i.est_invite &&
-        String(i.invite_par_nom || '').trim().toLowerCase() === nomParrain
+        i.est_invite && String(i.invite_par_nom || '').trim().toLowerCase() === nomParrain
       );
 
       const capacite = Number(session.max_capacity) || 22;
       const plein = confirmes.length >= capacite;
-      const heuresAvant = (new Date(session.debut_date).getTime() - Date.now()) / 3600000;
-      const avantH24 = heuresAvant > 24;
+      const avantH24 = (new Date(session.debut_date).getTime() - Date.now()) / 3600000 > 24;
+      const annulee = session.statut === 'annulee';
 
-      const boutonVote = monVote
-        ? `<button onclick="annulerInscription('${echapper(monVote.id)}')"
-             class="flex-1 bg-red-600 text-white font-extrabold text-xs py-3 rounded-xl">
-             Annuler ma place (${monVote.statut === 'confirmed' ? 'Confirmée' : 'Attente'})
-           </button>`
-        : `<button onclick="participer('${echapper(session.id)}')"
-             class="flex-1 ${plein ? 'bg-orange-600' : 'bg-blue-600'} text-white font-extrabold text-xs py-3 rounded-xl">
-             ${profil.abonne && !plein
-               ? 'Participer (Confirmé direct)'
-               : (plein ? 'Rejoindre la file d’attente' : (avantH24 ? 'Rejoindre la file d’attente (H-24)' : 'Participer'))}
-           </button>`;
+      let boutonVote = '';
+      if (!annulee) {
+        boutonVote = monVote
+          ? `<button onclick="annulerInscription('${echapper(monVote.id)}')"
+               class="flex-1 bg-red-600 text-white font-extrabold text-xs py-3 rounded-xl">
+               Annuler ma place (${monVote.statut === 'confirmed' ? 'Confirmée' : 'Attente'})
+             </button>`
+          : `<button onclick="participer('${echapper(session.id)}')"
+               class="flex-1 ${plein ? 'bg-orange-600' : 'bg-blue-600'} text-white font-extrabold text-xs py-3 rounded-xl">
+               ${profil.abonne && !plein ? 'Participer (Confirmé direct)' :
+                 (plein ? 'Rejoindre la file d’attente' :
+                 (avantH24 && !profil.abonne ? 'Rejoindre la file d’attente (H-24)' : 'Participer'))}
+             </button>`;
+      }
 
       const invitesHtml = mesInvites.map(invite => `
         <button onclick="annulerInscription('${echapper(invite.id)}')"
@@ -461,8 +474,10 @@
           (${invite.statut === 'confirmed' ? 'confirmé' : 'en attente'})
         </button>`).join('');
 
+      const numeroSession = String(session.nom || '').match(/Session\s*(\d+)/i)?.[1] || '1';
       const carte = document.createElement('section');
-      carte.className = 'bg-white rounded-2xl p-4 shadow-sm border border-slate-200';
+      carte.className = `bg-white rounded-2xl p-4 shadow-sm border ${annulee ? 'border-red-300' : 'border-slate-200'}`;
+
       carte.innerHTML = `
         <div class="flex justify-between items-start mb-3">
           <div>
@@ -476,46 +491,59 @@
             </h2>
             <p class="text-xs text-slate-500">🕒 ${echapper(session.horaires || '')}</p>
           </div>
-          <span class="bg-emerald-100 text-emerald-800 font-extrabold text-xs px-2.5 py-1 rounded-full">
-            ${confirmes.length} / ${capacite}
-          </span>
+          ${annulee
+            ? '<span class="bg-red-600 text-white font-bold text-xs px-2.5 py-1 rounded-full">ANNULÉE</span>'
+            : `<span class="bg-emerald-100 text-emerald-800 font-extrabold text-xs px-2.5 py-1 rounded-full">${confirmes.length} / ${capacite}</span>`}
         </div>
 
-        ${!profil.abonne && avantH24 ? `
+        ${annulee ? '<p class="my-3 rounded-lg bg-red-50 p-3 text-center text-xs font-bold text-red-800">Cette session est annulée.</p>' : ''}
+
+        ${!annulee && !profil.abonne && avantH24 ? `
           <div class="bg-amber-50 text-amber-900 text-xs font-semibold p-2.5 rounded-xl my-3 border border-amber-200">
             ⏳ Règle H-24 : votre vote reste en attente jusqu’à la confirmation.
           </div>` : ''}
 
-        <div class="flex gap-2 mt-3">
-          ${boutonVote}
-          <button onclick="ouvrirInvite('${echapper(session.id)}')"
-            class="bg-slate-100 text-slate-700 font-bold text-xs px-3 py-3 rounded-xl border border-slate-300">
-            + Invité
-          </button>
-        </div>
+        ${!annulee ? `
+          <div class="flex gap-2 mt-3">
+            ${boutonVote}
+            <button onclick="ouvrirInvite('${echapper(session.id)}')"
+              class="bg-slate-100 text-slate-700 font-bold text-xs px-3 py-3 rounded-xl border border-slate-300">
+              + Invité
+            </button>
+          </div>
+          ${mesInvites.length ? `<div class="space-y-2 mt-3">${invitesHtml}</div>` : ''}` : ''}
 
-        ${mesInvites.length ? `<div class="space-y-2 mt-3">${invitesHtml}</div>` : ''}
-
-        <div class="border-t border-slate-100 mt-3 pt-3">
-          <button onclick="ouvrirParticipants('${echapper(session.id)}')"
-            class="text-xs font-bold text-blue-700">
+        <div class="border-t border-slate-100 mt-3 pt-3 flex flex-wrap justify-between items-center gap-2">
+          <button onclick="ouvrirParticipants('${echapper(session.id)}')" class="text-xs font-bold text-blue-700">
             👥 Voir les inscrits (${confirmes.length} confirmés / ${attente.length} en attente)
           </button>
+
+          ${profil.admin ? `
+            <div class="flex gap-2">
+              <button onclick="ouvrirEdition('${echapper(session.id)}')"
+                class="text-xs font-bold text-blue-800 bg-blue-50 border border-blue-200 px-2.5 py-2 rounded-lg">
+                ✏️ Modifier
+              </button>
+              <button onclick="basculerAnnulation('${echapper(session.id)}')"
+                class="text-xs font-bold ${annulee ? 'text-emerald-800 bg-emerald-50 border-emerald-200' : 'text-red-800 bg-red-50 border-red-200'} px-2.5 py-2 rounded-lg border">
+                ${annulee ? 'Rétablir' : 'Annuler session'}
+              </button>
+            </div>` : ''}
         </div>`;
+
       container.appendChild(carte);
     });
   }
 
   async function participer(sessionId) {
-    if (!profil.prenom || !profil.nom) return ouvrirProfil();
-
     const session = sessions.find(s => s.id === sessionId);
+    if (!session) return alert('Session introuvable.');
+
     const confirmes = inscritsPour(sessionId).filter(i => i.statut === 'confirmed');
-    const avantH24 = session &&
-      (new Date(session.debut_date).getTime() - Date.now()) > 24 * 3600000;
+    const avantH24 = (new Date(session.debut_date).getTime() - Date.now()) > 24 * 3600000;
 
     let statut = 'confirmed';
-    if (confirmes.length >= (Number(session?.max_capacity) || 22)) statut = 'waitlisted';
+    if (confirmes.length >= (Number(session.max_capacity) || 22)) statut = 'waitlisted';
     else if (!profil.abonne && avantH24) statut = 'waitlisted';
 
     const { error } = await supabaseClient.from('inscriptions').insert([{
@@ -551,14 +579,12 @@
     if (!prenom || !nom) return alert('Prénom et nom de l’invité obligatoires.');
 
     const session = sessions.find(s => s.id === sessionInviteId);
-    const confirmes = inscritsPour(sessionInviteId).filter(i => i.statut === 'confirmed');
-    const avantH24 = session &&
-      (new Date(session.debut_date).getTime() - Date.now()) > 24 * 3600000;
+    if (!session) return alert('Session introuvable.');
 
-    const statut =
-      confirmes.length >= (Number(session?.max_capacity) || 22) || avantH24
-        ? 'waitlisted'
-        : 'confirmed';
+    const confirmes = inscritsPour(sessionInviteId).filter(i => i.statut === 'confirmed');
+    const avantH24 = (new Date(session.debut_date).getTime() - Date.now()) > 24 * 3600000;
+    const statut = confirmes.length >= (Number(session.max_capacity) || 22) || avantH24
+      ? 'waitlisted' : 'confirmed';
 
     const { error } = await supabaseClient.from('inscriptions').insert([{
       session_id: sessionInviteId,
@@ -587,6 +613,98 @@
     await rechargerInscriptions();
   }
 
+  function ouvrirEdition(sessionId) {
+    if (!profil.admin) return alert('Connecte-toi au mode Administrateur dans Profil.');
+    const session = sessions.find(s => s.id === sessionId);
+    if (!session) return alert('Session introuvable.');
+
+    sessionEditionId = sessionId;
+    document.getElementById('edition-nom-session').textContent = session.nom;
+
+    const date = new Date(session.debut_date);
+    const deux = n => String(n).padStart(2, '0');
+
+    document.getElementById('edition-date').value =
+      `${date.getFullYear()}-${deux(date.getMonth() + 1)}-${deux(date.getDate())}`;
+
+    const heures = String(session.horaires || '').match(/(\d{1,2})h(\d{2})\s*-\s*(\d{1,2})h(\d{2})/i);
+    document.getElementById('edition-debut').value = heures
+      ? `${deux(heures[1])}:${heures[2]}`
+      : `${deux(date.getHours())}:${deux(date.getMinutes())}`;
+    document.getElementById('edition-fin').value = heures
+      ? `${deux(heures[3])}:${heures[4]}`
+      : '21:30';
+
+    document.getElementById('modal-edition').classList.remove('hidden');
+  }
+
+  function fermerEdition() {
+    document.getElementById('modal-edition').classList.add('hidden');
+  }
+
+  async function enregistrerModificationSession() {
+    if (!profil.admin || !motDePasseAdminEnMemoire) {
+      return alert('Le mode Administrateur a expiré. Rouvre Profil et reconnecte-toi.');
+    }
+
+    const dateTexte = document.getElementById('edition-date').value;
+    const heureDebut = document.getElementById('edition-debut').value;
+    const heureFin = document.getElementById('edition-fin').value;
+
+    if (!dateTexte || !heureDebut || !heureFin) {
+      return alert('Renseigne la date, l’heure de début et l’heure de fin.');
+    }
+
+    const debut = new Date(`${dateTexte}T${heureDebut}:00`);
+    if (isNaN(debut.getTime())) return alert('La date ou l’heure saisie est invalide.');
+
+    const session = sessions.find(s => s.id === sessionEditionId);
+    const numero = String(session?.nom || '').match(/Session\s*(\d+)/i)?.[1] || '1';
+    const jour = debut.toLocaleDateString('fr-FR', { weekday: 'long' });
+    const nom = `${jour.charAt(0).toLocaleUpperCase('fr-FR')}${jour.slice(1)} — Session ${numero}`;
+    const horaires = `${heureDebut.replace(':', 'h')} - ${heureFin.replace(':', 'h')}`;
+
+    try {
+      await appelerFonctionAdmin('update_session', {
+        sessionId: sessionEditionId,
+        debut_date: debut.toISOString(),
+        horaires,
+        nom
+      });
+      fermerEdition();
+      await rechargerTout();
+      alert('La date et les horaires de la session ont été modifiés.');
+    } catch (error) {
+      alert('Modification impossible : ' + (error.message || error));
+    }
+  }
+
+  async function basculerAnnulation(sessionId) {
+    if (!profil.admin || !motDePasseAdminEnMemoire) {
+      return alert('Le mode Administrateur a expiré. Rouvre Profil et reconnecte-toi.');
+    }
+
+    const session = sessions.find(s => s.id === sessionId);
+    if (!session) return alert('Session introuvable.');
+
+    const annuler = session.statut !== 'annulee';
+    const texte = annuler
+      ? `Annuler « ${session.nom} » ? Les inscriptions seront conservées.`
+      : `Rétablir « ${session.nom} » ?`;
+
+    if (!confirm(texte)) return;
+
+    try {
+      await appelerFonctionAdmin('set_session_status', {
+        sessionId,
+        statut: annuler ? 'annulee' : 'ouvert'
+      });
+      await rechargerTout();
+    } catch (error) {
+      alert('Action impossible : ' + (error.message || error));
+    }
+  }
+
   function ouvrirParticipants(sessionId) {
     const session = sessions.find(s => s.id === sessionId);
     const inscrits = inscritsPour(sessionId);
@@ -598,12 +716,10 @@
     document.getElementById('participants-titre').textContent = session?.nom || 'Participants';
 
     function ligne(i, index, confirme) {
-      const estMonVote = !i.est_invite &&
-        memeNom(i.prenom, i.nom, profil.prenom, profil.nom);
+      const estMonVote = !i.est_invite && memeNom(i.prenom, i.nom, profil.prenom, profil.nom);
       const estMonInvite = i.est_invite &&
         String(i.invite_par_nom || '').trim().toLowerCase() ===
         `${profil.prenom} ${profil.nom}`.trim().toLowerCase();
-
       const peutAnnuler = profil.admin || estMonVote || estMonInvite;
 
       return `
@@ -613,27 +729,19 @@
           <div>
             <b>${confirme ? index + 1 : '#' + (index + 1)}. ${echapper(i.prenom)} ${echapper(i.nom)}</b>
             ${i.est_invite ? `<span class="text-slate-500">(invité par ${echapper(i.invite_par_nom || '')})</span>` : ''}
-            <p class="text-[10px] text-slate-500 mt-1">
-              🕒 ${echapper(formatHorodatage(i.date_demande))}
-            </p>
+            <p class="text-[10px] text-slate-500 mt-1">🕒 ${echapper(formatHorodatage(i.date_demande))}</p>
           </div>
           ${peutAnnuler ? `
             <button onclick="annulerInscription('${echapper(i.id)}')"
-              class="shrink-0 text-red-700 font-bold bg-red-100 px-2 py-1 rounded-lg">
-              Annuler
-            </button>` : ''}
+              class="shrink-0 text-red-700 font-bold bg-red-100 px-2 py-1 rounded-lg">Annuler</button>` : ''}
         </div>`;
     }
 
     document.getElementById('participants-corps').innerHTML = `
       <h3 class="font-extrabold text-xs uppercase text-slate-700">Confirmés (${confirmes.length})</h3>
-      ${confirmes.length
-        ? confirmes.map((i, n) => ligne(i, n, true)).join('')
-        : '<p class="text-xs text-slate-400">Aucun joueur confirmé.</p>'}
+      ${confirmes.length ? confirmes.map((i, n) => ligne(i, n, true)).join('') : '<p class="text-xs text-slate-400">Aucun joueur confirmé.</p>'}
       <h3 class="font-extrabold text-xs uppercase text-slate-700 mt-4">File d’attente (${attente.length})</h3>
-      ${attente.length
-        ? attente.map((i, n) => ligne(i, n, false)).join('')
-        : '<p class="text-xs text-slate-400">File d’attente vide.</p>'}`;
+      ${attente.length ? attente.map((i, n) => ligne(i, n, false)).join('') : '<p class="text-xs text-slate-400">File d’attente vide.</p>'}`;
 
     document.getElementById('modal-participants').classList.remove('hidden');
   }

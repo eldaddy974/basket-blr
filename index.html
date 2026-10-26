@@ -33,6 +33,9 @@
     <span id="badge-statut">⭐ Abonné Saison</span>
   </div>
 
+  <!-- Erreurs de connexion -->
+  <div id="app-erreur" class="hidden max-w-md mx-auto m-4 p-3 rounded-xl border border-red-300 bg-red-50 text-red-800 text-sm font-semibold" role="alert"></div>
+
   <!-- Sessions -->
   <main class="max-w-md mx-auto p-4 space-y-4" id="sessions-container"></main>
 
@@ -78,7 +81,10 @@
         </div>
         <div id="zone-mot-de-passe" class="hidden mt-2.5">
           <label class="text-[11px] font-bold text-slate-500">Mot de passe Administrateur</label>
-          <input type="password" id="input-mdp-admin" autocomplete="current-password" placeholder="Entrez le mot de passe" class="w-full mt-1 border border-amber-300 bg-amber-50/50 rounded-lg p-2 text-xs font-medium">
+          <div class="flex gap-2 mt-1">
+            <input type="password" id="input-mdp-admin" autocomplete="current-password" placeholder="Entrez le mot de passe" class="min-w-0 flex-1 border border-amber-300 bg-amber-50/50 rounded-lg p-2 text-xs font-medium">
+            <button type="button" id="btn-visibilite-mdp" onclick="basculerVisibiliteMotDePasse()" class="px-3 border border-slate-300 rounded-lg text-xs font-bold text-slate-700">Afficher</button>
+          </div>
         </div>
       </div>
 
@@ -136,8 +142,6 @@
       essaisFaits: 1
     };
 
-    // L'ancien mode admin était mémorisé dans le navigateur. On l'efface :
-    // l'administrateur devra désormais saisir le mot de passe à nouveau.
     localStorage.removeItem('blr_admin');
 
     let sessions = [];
@@ -153,9 +157,38 @@
       }).replace(':', 'h');
     }
 
+    function normaliserNom(valeur) {
+      return String(valeur || '').normalize('NFKC').replace(/\s+/g, ' ').trim().toLocaleLowerCase('fr-FR');
+    }
+
     function memeNom(p1, n1, p2, n2) {
-      return String(p1 || '').trim().toLowerCase() === String(p2 || '').trim().toLowerCase() &&
-             String(n1 || '').trim().toLowerCase() === String(n2 || '').trim().toLowerCase();
+      return normaliserNom(p1) === normaliserNom(p2) &&
+             normaliserNom(n1) === normaliserNom(n2);
+    }
+
+    function afficherErreurApplication(message) {
+      const zone = document.getElementById('app-erreur');
+      if (!zone) return;
+      zone.textContent = message;
+      zone.classList.remove('hidden');
+    }
+
+    function effacerErreurApplication() {
+      const zone = document.getElementById('app-erreur');
+      if (!zone) return;
+      zone.textContent = '';
+      zone.classList.add('hidden');
+    }
+
+    function basculerVisibiliteMotDePasse() {
+      const champ = document.getElementById('input-mdp-admin');
+      const bouton = document.getElementById('btn-visibilite-mdp');
+      if (!champ || !bouton) return;
+
+      const afficher = champ.type === 'password';
+      champ.type = afficher ? 'text' : 'password';
+      bouton.textContent = afficher ? 'Masquer' : 'Afficher';
+      bouton.setAttribute('aria-pressed', String(afficher));
     }
 
     function echapperHTML(valeur) {
@@ -193,8 +226,11 @@
     function calculerDatesProchainsMatchs() {
       const now = new Date();
       const jour = now.getDay();
+
       let diffMardi = (2 - jour + 7) % 7;
-      if (diffMardi === 0 && (now.getHours() > 21 || (now.getHours() === 21 && now.getMinutes() >= 30))) diffMardi = 7;
+      if (diffMardi === 0 && (now.getHours() > 21 || (now.getHours() === 21 && now.getMinutes() >= 30))) {
+        diffMardi = 7;
+      }
 
       let diffJeudi = (4 - jour + 7) % 7;
       if ((diffJeudi === 0 && (now.getHours() > 21 || (now.getHours() === 21 && now.getMinutes() >= 30))) || jour === 5 || jour === 6) {
@@ -233,7 +269,12 @@
       mettreAJourProfilUI();
       sessions = genererSessionsLocales();
       afficherSessions();
-      if (supabaseClient) synchroniserEnLigne();
+
+      if (supabaseClient) {
+        synchroniserEnLigne();
+      } else {
+        afficherErreurApplication('La bibliothèque Supabase ne s’est pas chargée. Vérifie ta connexion Internet puis recharge la page.');
+      }
     }
 
     async function synchroniserEnLigne() {
@@ -245,25 +286,16 @@
 
         if (error) throw error;
 
-        const { dateMardi, dateJeudi } = calculerDatesProchainsMatchs();
-        const now = new Date();
-
         if (!sess || sess.length === 0) {
           const nouvelles = genererSessionsLocales();
-          const { error: insertionErreur } = await supabaseClient.from('sessions').upsert(nouvelles);
+          const { error: insertionErreur } = await supabaseClient
+            .from('sessions')
+            .upsert(nouvelles);
+
           if (insertionErreur) throw insertionErreur;
           sessions = nouvelles;
         } else {
-          for (const s of sess) {
-            const dateSess = new Date(s.debut_date);
-            if (dateSess.getTime() < now.getTime() - 2 * 3600 * 1000) {
-              const nouvelleDate = s.id === 'session-mardi' ? dateMardi : dateJeudi;
-              await supabaseClient.from('inscriptions').delete().eq('session_id', s.id);
-              await supabaseClient.from('sessions')
-                .update({ debut_date: nouvelleDate.toISOString(), statut: 'ouvert' })
-                .eq('id', s.id);
-            }
-          }
+          // Le chargement ne supprime ni ne réinitialise les inscriptions.
           sessions = sess;
         }
 
@@ -273,18 +305,23 @@
           .on('postgres_changes', { event: '*', schema: 'public', table: 'inscriptions' }, rechargerDonnees)
           .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' }, rechargerDonnees)
           .subscribe();
+
+        effacerErreurApplication();
       } catch (err) {
         console.error('Synchronisation Supabase impossible :', err);
+        afficherErreurApplication('Impossible de lire les sessions dans Supabase : ' + (err.message || 'erreur inconnue') + '. Les inscriptions ne sont pas supprimées.');
       }
     }
 
     async function rechargerDonnees() {
       if (!supabaseClient) return;
+
       try {
         const { data: sess, error: erreurSessions } = await supabaseClient
           .from('sessions')
           .select('*')
           .order('debut_date', { ascending: true });
+
         const { data: insc, error: erreurInscriptions } = await supabaseClient
           .from('inscriptions')
           .select('*');
@@ -297,13 +334,16 @@
 
         await autoPromouvoirH24();
         afficherSessions();
+        effacerErreurApplication();
       } catch (e) {
         console.error('Rechargement des réservations impossible :', e);
+        afficherErreurApplication('Impossible de lire les inscriptions dans Supabase : ' + (e.message || 'erreur inconnue') + '. Les données de la base ne sont pas supprimées.');
       }
     }
 
     async function autoPromouvoirH24() {
       const now = new Date();
+
       for (const session of sessions) {
         const dateDebut = new Date(session.debut_date);
         const delaiH = (dateDebut.getTime() - now.getTime()) / (3600 * 1000);
@@ -316,13 +356,16 @@
             .sort((a, b) => (a.date_demande || 0) - (b.date_demande || 0));
 
           const placesDisponibles = (session.max_capacity || 22) - confirmes.length;
+
           if (placesDisponibles > 0 && attente.length > 0) {
             const aConfirmer = attente.slice(0, placesDisponibles);
+
             for (const joueur of aConfirmer) {
               const { error } = await supabaseClient
                 .from('inscriptions')
                 .update({ statut: 'confirmed' })
                 .eq('id', joueur.id);
+
               if (!error) joueur.statut = 'confirmed';
             }
           }
@@ -334,7 +377,10 @@
       const container = document.getElementById('sessions-container');
       if (!container) return;
 
-      const sessionsAffichees = (sessions && sessions.length > 0) ? sessions : genererSessionsLocales();
+      const sessionsAffichees = (sessions && sessions.length > 0)
+        ? sessions
+        : genererSessionsLocales();
+
       container.innerHTML = '';
       const now = new Date();
 
@@ -349,15 +395,27 @@
 
           const estPlein = confirmes.length >= (session.max_capacity || 22);
           const estAnnulee = session.statut === 'annulee';
-          const monInsc = inscrits.find(i => i && !i.est_invite && memeNom(i.prenom, i.nom, monProfil.prenom, monProfil.nom));
-          const monNomComplet = `${monProfil.prenom} ${monProfil.nom}`.trim().toLowerCase();
-          const mesInvites = inscrits.filter(i => i && i.est_invite &&
-            String(i.invite_par_nom || '').trim().toLowerCase() === monNomComplet);
+
+          const monInsc = inscrits.find(i =>
+            i && !i.est_invite &&
+            memeNom(i.prenom, i.nom, monProfil.prenom, monProfil.nom)
+          );
+
+          const monNomComplet = normaliserNom(`${monProfil.prenom} ${monProfil.nom}`);
+          const mesInvites = inscrits.filter(i =>
+            i &&
+            i.est_invite &&
+            normaliserNom(i.invite_par_nom) === monNomComplet
+          );
 
           const delaiH = (dateDebut.getTime() - now.getTime()) / (3600 * 1000);
           const avantH24 = delaiH > 24;
           const estH2 = delaiH > 0 && delaiH <= 2;
-          const dateTexte = dateDebut.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'short' });
+          const dateTexte = dateDebut.toLocaleDateString('fr-FR', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'short'
+          });
 
           const carte = document.createElement('div');
           carte.className = `bg-white rounded-2xl p-4 shadow-sm border ${estAnnulee ? 'border-red-300 bg-red-50/50' : 'border-slate-200'}`;
@@ -366,24 +424,34 @@
           let boutonClasse = 'bg-blue-600 hover:bg-blue-700 text-white';
 
           if (monProfil.estAbonneSaison) {
-            boutonTexte = estPlein ? "Rejoindre la file d'attente" : 'Participer (Confirmé direct)';
-            boutonClasse = estPlein ? 'bg-orange-600 hover:bg-orange-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white';
+            boutonTexte = estPlein
+              ? "Rejoindre la file d'attente"
+              : 'Participer (Confirmé direct)';
+            boutonClasse = estPlein
+              ? 'bg-orange-600 hover:bg-orange-700 text-white'
+              : 'bg-blue-600 hover:bg-blue-700 text-white';
           } else if (avantH24) {
             boutonTexte = "Rejoindre la file d'attente (H-24)";
             boutonClasse = 'bg-amber-600 hover:bg-amber-700 text-white';
           } else {
-            boutonTexte = estPlein ? "Rejoindre la file d'attente" : 'Participer';
-            boutonClasse = estPlein ? 'bg-orange-600 hover:bg-orange-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white';
+            boutonTexte = estPlein
+              ? "Rejoindre la file d'attente"
+              : 'Participer';
+            boutonClasse = estPlein
+              ? 'bg-orange-600 hover:bg-orange-700 text-white'
+              : 'bg-blue-600 hover:bg-blue-700 text-white';
           }
 
           carte.innerHTML = `
             <div class="flex justify-between items-start mb-2">
               <div>
                 <h2 class="font-extrabold text-base text-slate-900 ${estAnnulee ? 'text-red-700' : ''}">
-                  ${echapperHTML(session.nom)} <span class="text-xs text-slate-500 font-normal">(${dateTexte})</span>
+                  ${echapperHTML(session.nom)}
+                  <span class="text-xs text-slate-500 font-normal">(${dateTexte})</span>
                 </h2>
                 <p class="text-xs text-slate-500">🕒 ${echapperHTML(session.horaires)}</p>
               </div>
+
               ${estAnnulee
                 ? `<span class="bg-red-600 text-white font-extrabold text-[11px] px-2.5 py-1 rounded-full">ANNULÉ</span>`
                 : `<span class="font-extrabold text-xs px-2.5 py-1 rounded-full ${estPlein ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-800'}">
@@ -399,15 +467,20 @@
 
             ${!estAnnulee && !monProfil.estAbonneSaison && avantH24 ? `
               <div class="bg-amber-50 text-amber-900 text-xs font-semibold p-2.5 rounded-xl my-2 border border-amber-200">
-                ⏳ <b>Règle H-24 :</b> Vous votez pour la file d'attente. Confirmation automatique dans ${Math.max(0, Math.round(delaiH - 24))}h si moins de 22 abonnés.
+                ⏳ <b>Règle H-24 :</b> Vous votez pour la file d'attente.
+                Confirmation automatique dans ${Math.max(0, Math.round(delaiH - 24))}h si moins de 22 abonnés.
               </div>` : ''}
 
             ${!estAnnulee && monInsc && monInsc.statut === 'confirmed' && estH2 ? `
               <div class="bg-red-50 border border-red-200 p-3 rounded-xl my-3">
                 <p class="text-xs font-extrabold text-red-800">🚨 Session dans moins de 2h !</p>
-                <p class="text-[11px] text-red-600 mb-2">${monInsc.reconfirme ? '✅ Présence confirmée' : 'Reconfirmez votre présence ou cédez votre place.'}</p>
+                <p class="text-[11px] text-red-600 mb-2">
+                  ${monInsc.reconfirme ? '✅ Présence confirmée' : 'Reconfirmez votre présence ou cédez votre place.'}
+                </p>
                 <div class="flex gap-2">
-                  ${!monInsc.reconfirme ? `<button onclick="reconfirmerH2('${monInsc.id}')" class="flex-1 bg-emerald-600 text-white font-bold text-xs py-2 rounded-lg">Je confirme ✅</button>` : ''}
+                  ${!monInsc.reconfirme
+                    ? `<button onclick="reconfirmerH2('${monInsc.id}')" class="flex-1 bg-emerald-600 text-white font-bold text-xs py-2 rounded-lg">Je confirme ✅</button>`
+                    : ''}
                   <button onclick="annulerInscription('${session.id}', '${monInsc.id}')" class="flex-1 bg-red-600 text-white font-bold text-xs py-2 rounded-lg">J'annule ❌</button>
                 </div>
               </div>` : ''}
@@ -430,7 +503,9 @@
               <div class="mt-2 space-y-2">
                 ${mesInvites.map(invite => `
                   <button onclick="annulerInscription('${session.id}', '${invite.id}')" class="w-full bg-red-50 text-red-700 border border-red-200 font-bold text-xs py-2.5 rounded-xl">
-                    Annuler mon vote invité : ${echapperHTML(invite.prenom)} ${echapperHTML(invite.nom)} (${invite.statut === 'confirmed' ? 'Confirmé' : 'En attente'})
+                    Annuler mon vote invité :
+                    ${echapperHTML(invite.prenom)} ${echapperHTML(invite.nom)}
+                    (${invite.statut === 'confirmed' ? 'Confirmé' : 'En attente'})
                   </button>
                 `).join('')}
               </div>` : ''}
@@ -460,9 +535,15 @@
         return;
       }
 
-      if (!supabaseClient) return alert('Connexion à Supabase indisponible.');
+      if (!supabaseClient) {
+        return alert('Connexion à Supabase indisponible.');
+      }
 
-      const session = sessions.find(s => s.id === sessionId) || { max_capacity: 22, debut_date: new Date() };
+      const session = sessions.find(s => s.id === sessionId) || {
+        max_capacity: 22,
+        debut_date: new Date()
+      };
+
       const dateDebut = new Date(session.debut_date);
       const now = new Date();
       const delaiH = (dateDebut.getTime() - now.getTime()) / (3600 * 1000);
@@ -471,8 +552,11 @@
       const confirmes = inscrits.filter(i => i && i.statut === 'confirmed');
 
       let statut = 'confirmed';
-      if (confirmes.length >= (session.max_capacity || 22)) statut = 'waitlisted';
-      else if (!monProfil.estAbonneSaison && avantH24) statut = 'waitlisted';
+      if (confirmes.length >= (session.max_capacity || 22)) {
+        statut = 'waitlisted';
+      } else if (!monProfil.estAbonneSaison && avantH24) {
+        statut = 'waitlisted';
+      }
 
       const nouvelleInsc = {
         session_id: sessionId,
@@ -486,16 +570,24 @@
         reconfirme: false
       };
 
-      const { error } = await supabaseClient.from('inscriptions').insert([nouvelleInsc]);
+      const { error } = await supabaseClient
+        .from('inscriptions')
+        .insert([nouvelleInsc]);
+
       if (error) {
         alert('Erreur Supabase : ' + error.message);
         return;
       }
 
       await rechargerDonnees();
-      if (statut === 'confirmed') alert('Place confirmée ! 🏀');
-      else if (!monProfil.estAbonneSaison && avantH24) alert('Pré-inscription enregistrée en file d’attente ! Validation automatique à H-24 si moins de 22 abonnés.');
-      else alert('Session complète (22/22) : placé en file d’attente.');
+
+      if (statut === 'confirmed') {
+        alert('Place confirmée ! 🏀');
+      } else if (!monProfil.estAbonneSaison && avantH24) {
+        alert('Pré-inscription enregistrée en file d’attente ! Validation automatique à H-24 si moins de 22 abonnés.');
+      } else {
+        alert('Session complète (22/22) : placé en file d’attente.');
+      }
     }
 
     async function annulerInscription(sessionId, rsvpId) {
@@ -503,12 +595,20 @@
       const joueur = inscrits.find(i => String(i.id) === String(rsvpId));
       const nomJoueur = joueur ? `${joueur.prenom} ${joueur.nom}` : 'ce joueur';
 
-      if (!confirm(`Confirmez-vous l'annulation de la place de ${nomJoueur} ?`)) return;
-      if (!supabaseClient) return alert('Connexion à Supabase indisponible.');
+      if (!confirm(`Confirmez-vous l'annulation de la place de ${nomJoueur} ?`)) {
+        return;
+      }
+
+      if (!supabaseClient) {
+        return alert('Connexion à Supabase indisponible.');
+      }
 
       if (monProfil.estAdmin) {
         try {
-          const resultat = await appelerFonctionAdmin('delete-inscription', { inscriptionId: rsvpId });
+          const resultat = await appelerFonctionAdmin('delete-inscription', {
+            inscriptionId: rsvpId
+          });
+
           if (resultat.joueurRepêché) {
             alert(`🎉 Place libérée ! ${resultat.joueurRepêché.prenom} ${resultat.joueurRepêché.nom} est automatiquement repêché(e).`);
           }
@@ -517,7 +617,11 @@
           return;
         }
       } else {
-        const { error } = await supabaseClient.from('inscriptions').delete().eq('id', rsvpId);
+        const { error } = await supabaseClient
+          .from('inscriptions')
+          .delete()
+          .eq('id', rsvpId);
+
         if (error) {
           alert('Erreur suppression : ' + error.message);
           return;
@@ -533,6 +637,7 @@
               .from('inscriptions')
               .update({ statut: 'confirmed' })
               .eq('id', premierAttente.id);
+
             if (!promotionErreur) {
               alert(`🎉 Place libérée ! ${premierAttente.prenom} ${premierAttente.nom} est automatiquement repêché(e).`);
             }
@@ -545,9 +650,19 @@
     }
 
     async function reconfirmerH2(rsvpId) {
-      if (!supabaseClient) return alert('Connexion à Supabase indisponible.');
-      const { error } = await supabaseClient.from('inscriptions').update({ reconfirme: true }).eq('id', rsvpId);
-      if (error) return alert('Erreur de confirmation : ' + error.message);
+      if (!supabaseClient) {
+        return alert('Connexion à Supabase indisponible.');
+      }
+
+      const { error } = await supabaseClient
+        .from('inscriptions')
+        .update({ reconfirme: true })
+        .eq('id', rsvpId);
+
+      if (error) {
+        return alert('Erreur de confirmation : ' + error.message);
+      }
+
       await rechargerDonnees();
       alert('Présence validée ✅');
     }
@@ -559,10 +674,17 @@
       }
 
       const nouveau = estAnnulee ? 'ouvert' : 'annulee';
-      if (!confirm(estAnnulee ? 'Rétablir cette session ?' : 'Annuler cette session ? Les inscrits seront notifiés.')) return;
+      const confirmation = estAnnulee
+        ? 'Rétablir cette session ?'
+        : 'Annuler cette session ? Les inscrits seront notifiés.';
+
+      if (!confirm(confirmation)) return;
 
       try {
-        await appelerFonctionAdmin('set-session-status', { sessionId, statut: nouveau });
+        await appelerFonctionAdmin('set-session-status', {
+          sessionId,
+          statut: nouveau
+        });
         await rechargerDonnees();
       } catch (error) {
         alert('Erreur administrateur : ' + error.message);
@@ -572,17 +694,30 @@
     async function validerInvite() {
       const prenom = document.getElementById('invite-prenom').value.trim();
       const nom = document.getElementById('invite-nom').value.trim();
-      if (!prenom || !nom) return alert('Prénom et nom obligatoires.');
-      if (!supabaseClient) return alert('Connexion à Supabase indisponible.');
 
-      const session = sessions.find(s => s.id === sessionActiveId) || { max_capacity: 22, debut_date: new Date() };
+      if (!prenom || !nom) {
+        return alert('Prénom et nom obligatoires.');
+      }
+
+      if (!supabaseClient) {
+        return alert('Connexion à Supabase indisponible.');
+      }
+
+      const session = sessions.find(s => s.id === sessionActiveId) || {
+        max_capacity: 22,
+        debut_date: new Date()
+      };
+
       const dateDebut = new Date(session.debut_date);
       const now = new Date();
       const delaiH = (dateDebut.getTime() - now.getTime()) / (3600 * 1000);
       const avantH24 = delaiH > 24;
       const inscrits = (inscriptions || []).filter(i => i && i.session_id === sessionActiveId);
       const confirmes = inscrits.filter(i => i && i.statut === 'confirmed');
-      const statut = (confirmes.length >= (session.max_capacity || 22) || avantH24) ? 'waitlisted' : 'confirmed';
+      const statut = (confirmes.length >= (session.max_capacity || 22) || avantH24)
+        ? 'waitlisted'
+        : 'confirmed';
+
       const nomParrain = `${monProfil.prenom} ${monProfil.nom}`.trim();
 
       const nouvelInvite = {
@@ -597,7 +732,10 @@
         reconfirme: false
       };
 
-      const { error } = await supabaseClient.from('inscriptions').insert([nouvelInvite]);
+      const { error } = await supabaseClient
+        .from('inscriptions')
+        .insert([nouvelInvite]);
+
       if (error) {
         alert("Erreur lors de l'ajout de l'invité : " + error.message);
         return;
@@ -606,6 +744,7 @@
       fermerModal('modal-invite');
       document.getElementById('invite-prenom').value = '';
       document.getElementById('invite-nom').value = '';
+
       await rechargerDonnees();
       alert(`Invité inscrit (${statut === 'confirmed' ? 'Confirmé' : 'En attente'}) !`);
     }
@@ -613,7 +752,10 @@
     function toggleChampMotDePasse() {
       const estCoche = document.getElementById('check-admin').checked;
       const zoneMdp = document.getElementById('zone-mot-de-passe');
-      if (zoneMdp) zoneMdp.classList.toggle('hidden', !estCoche);
+
+      if (zoneMdp) {
+        zoneMdp.classList.toggle('hidden', !estCoche);
+      }
     }
 
     async function sauvegarderProfil() {
@@ -623,21 +765,39 @@
       const adminCoche = document.getElementById('check-admin').checked;
       const mdpSaisi = document.getElementById('input-mdp-admin').value;
 
-      if (!prenom || !nom) return alert('Prénom et nom requis.');
+      if (!prenom || !nom) {
+        return alert('Prénom et nom requis.');
+      }
 
       let estAdminValide = false;
+
       if (adminCoche) {
         const motDePasseATester = mdpSaisi || motDePasseAdminSession;
-        if (!motDePasseATester) return alert('Saisissez le mot de passe administrateur.');
-        if (!supabaseClient) return alert('Connexion à Supabase indisponible.');
+
+        if (!motDePasseATester) {
+          return alert('Saisissez le mot de passe administrateur.');
+        }
+
+        if (!supabaseClient) {
+          return alert('Connexion à Supabase indisponible.');
+        }
 
         try {
           const { data, error } = await supabaseClient.functions.invoke(ADMIN_FUNCTION_NAME, {
-            body: { action: 'verify', password: motDePasseATester }
+            body: {
+              action: 'verify',
+              password: motDePasseATester
+            }
           });
-          if (error || !data || data.ok !== true) {
-            throw new Error((data && data.erreur) || (error && error.message) || 'Mot de passe incorrect.');
+
+          if (error) {
+            throw new Error(error.message || 'La fonction admin-actions a refusé la requête.');
           }
+
+          if (!data || data.ok !== true) {
+            throw new Error((data && data.erreur) || 'Mot de passe refusé par Supabase.');
+          }
+
           estAdminValide = true;
           motDePasseAdminSession = motDePasseATester;
           alert('Mode Administrateur actif 🛡️');
@@ -668,32 +828,47 @@
     }
 
     function mettreAJourProfilUI() {
-      document.getElementById('joueur-nom-header').innerText = `${monProfil.prenom} ${monProfil.nom}`;
+      document.getElementById('joueur-nom-header').innerText =
+        `${monProfil.prenom} ${monProfil.nom}`;
+
       document.getElementById('input-prenom').value = monProfil.prenom;
       document.getElementById('input-nom').value = monProfil.nom;
       document.getElementById('check-abonne').checked = monProfil.estAbonneSaison;
       document.getElementById('check-admin').checked = monProfil.estAdmin;
-      document.getElementById('btn-stats').style.display = monProfil.estAdmin ? 'block' : 'none';
-      document.getElementById('badge-admin').style.display = monProfil.estAdmin ? 'inline' : 'none';
-      document.getElementById('badge-statut').innerText = monProfil.estAbonneSaison
-        ? '⭐ Abonné Saison'
-        : '🎟️ Essai : 1/2 utilisé';
+      document.getElementById('btn-stats').style.display =
+        monProfil.estAdmin ? 'block' : 'none';
+      document.getElementById('badge-admin').style.display =
+        monProfil.estAdmin ? 'inline' : 'none';
+
+      document.getElementById('badge-statut').innerText =
+        monProfil.estAbonneSaison
+          ? '⭐ Abonné Saison'
+          : '🎟️ Essai : 1/2 utilisé';
+
       toggleChampMotDePasse();
     }
 
     function ouvrirModalListe(sessionId) {
       sessionActiveId = sessionId;
+
       const session = sessions.find(s => s.id === sessionId) || { max_capacity: 22 };
       const inscrits = (inscriptions || []).filter(i => i && i.session_id === sessionId);
       const confirmes = inscrits.filter(i => i && i.statut === 'confirmed');
       const attente = inscrits
         .filter(i => i && i.statut === 'waitlisted')
         .sort((a, b) => (a.date_demande || 0) - (b.date_demande || 0));
-      const monNomComplet = `${monProfil.prenom} ${monProfil.nom}`.trim().toLowerCase();
+
+      const monNomComplet = normaliserNom(`${monProfil.prenom} ${monProfil.nom}`);
 
       function genererLigne(j, index, estConfirm) {
-        const estMonPropreVote = !j.est_invite && memeNom(j.prenom, j.nom, monProfil.prenom, monProfil.nom);
-        const estMonInvite = j.est_invite && String(j.invite_par_nom || '').trim().toLowerCase() === monNomComplet;
+        const estMonPropreVote =
+          !j.est_invite &&
+          memeNom(j.prenom, j.nom, monProfil.prenom, monProfil.nom);
+
+        const estMonInvite =
+          j.est_invite &&
+          normaliserNom(j.invite_par_nom) === monNomComplet;
+
         const peutAnnuler = monProfil.estAdmin || estMonPropreVote || estMonInvite;
 
         let texteBouton = 'Retirer';
@@ -705,24 +880,54 @@
           <div class="flex justify-between items-center text-xs p-2.5 ${estConfirm ? 'bg-slate-50 border-slate-100' : 'bg-amber-50 border-amber-200'} rounded-xl border">
             <div>
               <span class="font-bold text-slate-900">
-                <b class="${estConfirm ? 'text-blue-600' : 'text-amber-700'} mr-1">${estConfirm ? (index + 1) + '.' : '#' + (index + 1)}</b>
+                <b class="${estConfirm ? 'text-blue-600' : 'text-amber-700'} mr-1">
+                  ${estConfirm ? (index + 1) + '.' : '#' + (index + 1)}
+                </b>
                 ${echapperHTML(j.prenom)} ${echapperHTML(j.nom)}
-                ${j.est_invite ? `<span class="text-slate-500 font-normal">(invité par ${echapperHTML(j.invite_par_nom || 'un membre')})</span>` : ''}
+                ${j.est_invite
+                  ? `<span class="text-slate-500 font-normal">(invité par ${echapperHTML(j.invite_par_nom || 'un membre')})</span>`
+                  : ''}
                 ${j.reconfirme ? '✅' : ''}
               </span>
-              <p class="text-[10px] text-slate-400 font-medium">🕒 Voté le ${formaterDateHeure(j.date_demande)}</p>
+              <p class="text-[10px] text-slate-400 font-medium">
+                🕒 Voté le ${formaterDateHeure(j.date_demande)}
+              </p>
             </div>
-            ${peutAnnuler ? `<button onclick="annulerInscription('${sessionId}', '${j.id}')" class="text-red-700 font-extrabold text-[11px] bg-red-100 border border-red-200 px-2 py-1 rounded-lg">${texteBouton}</button>` : ''}
+            ${peutAnnuler
+              ? `<button onclick="annulerInscription('${sessionId}', '${j.id}')" class="text-red-700 font-extrabold text-[11px] bg-red-100 border border-red-200 px-2 py-1 rounded-lg">${texteBouton}</button>`
+              : ''}
           </div>`;
       }
 
-      let html = `<h4 class="font-extrabold text-xs text-slate-700 tracking-wide uppercase">Confirmés (${confirmes.length}/${session.max_capacity || 22})</h4><div class="space-y-2 mt-2">`;
-      if (confirmes.length === 0) html += `<p class="text-xs text-slate-400 italic">Aucun joueur confirmé pour le moment.</p>`;
-      confirmes.forEach((j, index) => { html += genererLigne(j, index, true); });
+      let html = `
+        <h4 class="font-extrabold text-xs text-slate-700 tracking-wide uppercase">
+          Confirmés (${confirmes.length}/${session.max_capacity || 22})
+        </h4>
+        <div class="space-y-2 mt-2">`;
 
-      html += `</div><h4 class="font-extrabold text-xs text-slate-700 tracking-wide uppercase mt-4">File d'attente (${attente.length})</h4><div class="space-y-2 mt-2">`;
-      if (attente.length === 0) html += `<p class="text-xs text-slate-400 italic">File d'attente vide.</p>`;
-      attente.forEach((j, index) => { html += genererLigne(j, index, false); });
+      if (confirmes.length === 0) {
+        html += `<p class="text-xs text-slate-400 italic">Aucun joueur confirmé pour le moment.</p>`;
+      }
+
+      confirmes.forEach((j, index) => {
+        html += genererLigne(j, index, true);
+      });
+
+      html += `
+        </div>
+        <h4 class="font-extrabold text-xs text-slate-700 tracking-wide uppercase mt-4">
+          File d'attente (${attente.length})
+        </h4>
+        <div class="space-y-2 mt-2">`;
+
+      if (attente.length === 0) {
+        html += `<p class="text-xs text-slate-400 italic">File d'attente vide.</p>`;
+      }
+
+      attente.forEach((j, index) => {
+        html += genererLigne(j, index, false);
+      });
+
       html += `</div>`;
 
       document.getElementById('liste-corps').innerHTML = html;
@@ -731,9 +936,11 @@
 
     function ouvrirModalStats() {
       const stats = {};
+
       (inscriptions || []).forEach(i => {
         if (i && i.prenom && i.nom) {
-          const cle = `${i.prenom} ${i.nom}` + (i.est_invite ? ` (invité par ${i.invite_par_nom || 'un membre'})` : '');
+          const cle = `${i.prenom} ${i.nom}` +
+            (i.est_invite ? ` (invité par ${i.invite_par_nom || 'un membre'})` : '');
           stats[cle] = (stats[cle] || 0) + 1;
         }
       });
@@ -741,7 +948,9 @@
       const html = Object.keys(stats).map(nom => `
         <div class="flex justify-between text-xs py-2 border-b">
           <span class="font-bold text-slate-800">${echapperHTML(nom)}</span>
-          <span class="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-bold">${stats[nom]} séance(s)</span>
+          <span class="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-bold">
+            ${stats[nom]} séance(s)
+          </span>
         </div>
       `).join('') || '<p class="text-xs text-slate-400">Aucune donnée pour le moment.</p>';
 
@@ -751,6 +960,7 @@
 
     function exporterCSV() {
       let csv = 'Prénom,Nom,Statut,Type,Parrain,Horodatage\n';
+
       (inscriptions || []).forEach(i => {
         if (i) {
           const valeurs = [
@@ -761,6 +971,7 @@
             i.invite_par_nom || '',
             formaterDateHeure(i.date_demande)
           ].map(v => `"${String(v).replaceAll('"', '""')}"`);
+
           csv += valeurs.join(',') + '\n';
         }
       });

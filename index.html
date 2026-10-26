@@ -33,7 +33,7 @@
     <span id="badge-statut">⭐ Abonné Saison</span>
   </div>
 
-  <!-- Erreurs de connexion -->
+  <!-- Messages de connexion -->
   <div id="app-erreur" class="hidden max-w-md mx-auto m-4 p-3 rounded-xl border border-red-300 bg-red-50 text-red-800 text-sm font-semibold" role="alert"></div>
 
   <!-- Sessions -->
@@ -305,8 +305,6 @@
           .on('postgres_changes', { event: '*', schema: 'public', table: 'inscriptions' }, rechargerDonnees)
           .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' }, rechargerDonnees)
           .subscribe();
-
-        effacerErreurApplication();
       } catch (err) {
         console.error('Synchronisation Supabase impossible :', err);
         afficherErreurApplication('Impossible de lire les sessions dans Supabase : ' + (err.message || 'erreur inconnue') + '. Les inscriptions ne sont pas supprimées.');
@@ -314,7 +312,7 @@
     }
 
     async function rechargerDonnees() {
-      if (!supabaseClient) return;
+      if (!supabaseClient) return false;
 
       try {
         const { data: sess, error: erreurSessions } = await supabaseClient
@@ -330,14 +328,30 @@
         if (erreurInscriptions) throw erreurInscriptions;
 
         if (sess && sess.length > 0) sessions = sess;
-        if (insc) inscriptions = insc;
+        inscriptions = Array.isArray(insc) ? insc : [];
 
         await autoPromouvoirH24();
         afficherSessions();
-        effacerErreurApplication();
+
+        if (inscriptions.length === 0) {
+          afficherErreurApplication('Supabase répond, mais la page a reçu 0 inscription. Les lignes que tu vois dans Table Editor ne sont pas supprimées. Il reste à corriger leur lecture par la page.');
+        } else {
+          const statutsInconnus = inscriptions.filter(i =>
+            !['confirmed', 'waitlisted'].includes(i.statut)
+          );
+
+          if (statutsInconnus.length > 0) {
+            afficherErreurApplication(`La page a chargé ${inscriptions.length} inscription(s), mais ${statutsInconnus.length} ont un statut que l’affichage ne reconnaît pas. Vérifie la colonne statut dans Supabase.`);
+          } else {
+            effacerErreurApplication();
+          }
+        }
+
+        return true;
       } catch (e) {
         console.error('Rechargement des réservations impossible :', e);
         afficherErreurApplication('Impossible de lire les inscriptions dans Supabase : ' + (e.message || 'erreur inconnue') + '. Les données de la base ne sont pas supprimées.');
+        return false;
       }
     }
 

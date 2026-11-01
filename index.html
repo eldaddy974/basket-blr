@@ -566,14 +566,14 @@
         ${!annulee ? `
           <div class="flex gap-2 mt-3">
             ${boutonVote}
-            ${profil.abonne ? `
+            ${profil.prenom && profil.nom ? `
               <button onclick="ouvrirInvite('${echapper(session.id)}')"
                 title="Inscrire un autre invité sur ce créneau"
                 class="bg-slate-100 text-slate-700 font-bold text-xs px-3 py-3 rounded-xl border border-slate-300">
                 + Invité (${mesInvites.length})
               </button>` : ''}
           </div>
-          ${profil.abonne && avantH24 ? `<p class="text-[11px] text-slate-500 mt-2">Un invité inscrit avant H-24 reste en attente jusqu’à l’ouverture (${echapper(heureOuverture)}).</p>` : ''}
+          ${avantH24 ? `<p class="text-[11px] text-slate-500 mt-2">Un invité inscrit avant H-24 reste en attente jusqu’à l’ouverture (${echapper(heureOuverture)}).</p>` : ''}
           ${mesInvites.length ? `<div class="space-y-2 mt-3">${invitesHtml}</div>` : ''}` : ''}
 
         <div class="border-t border-slate-300 mt-3 pt-3 flex flex-wrap justify-between items-center gap-2">
@@ -644,7 +644,7 @@
     const prenom = document.getElementById('invite-prenom').value.trim();
     const nom = document.getElementById('invite-nom').value.trim();
     if (!prenom || !nom) return alert('Prénom et nom de l’invité obligatoires.');
-    if (!profil.abonne) return alert('Seuls les adhérents à jour de cotisation peuvent inscrire un invité.');
+    // L’inscription d’un invité est ouverte aux adhérents et non-adhérents.
 
     const session = sessions.find(s => s.id === sessionInviteId);
     if (!session) return alert('Session introuvable.');

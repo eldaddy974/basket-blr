@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Asso BLR — Basket Loisir Réunion</title>
-  <link rel="icon" href="https://i.ibb.co/6RpLFRtf/Photo-Grid-Site-1747833719453.png">
+  <link rel="icon" href="./logo-blr.svg" type="image/svg+xml">
   <meta name="theme-color" content="#2563eb">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -14,8 +14,8 @@
 
   <header class="bg-white border-b border-slate-200 px-4 py-3 sticky top-0 z-30 shadow-sm flex items-center justify-between">
     <div class="flex items-center gap-3">
-      <img src="https://i.ibb.co/6RpLFRtf/Photo-Grid-Site-1747833719453.png"
-           alt="Logo BLR" class="w-11 h-11 rounded-full border border-slate-200">
+      <img src="./logo-blr.svg"
+           alt="Logo BLR — Basket Loisir Réunion" class="w-11 h-11 rounded-full border border-slate-200">
       <div>
         <h1 class="text-base font-extrabold text-slate-900">Asso BLR</h1>
         <p class="text-xs font-bold text-blue-600">Basket Loisir Réunion</p>
@@ -222,7 +222,7 @@
 
     if (!prochaineOuverture) return;
     minuteurOuvertureH24 = setTimeout(() => {
-      afficherSessions();
+      rechargerInscriptions();
       programmerOuvertureH24();
     }, prochaineOuverture - maintenant + 20);
   }
@@ -515,15 +515,11 @@
             ? `<button disabled class="flex-1 bg-slate-200 text-slate-600 font-extrabold text-xs py-3 rounded-xl">
                  Déjà inscrit sur ce créneau
                </button>`
-            : !profil.abonne && avantH24
-              ? `<button disabled title="Ouverture le ${echapper(heureOuverture)}"
-                   class="flex-1 bg-slate-200 text-slate-600 font-extrabold text-xs py-3 rounded-xl">
-                   Ouverture non-adhérents à H-24
-                 </button>`
-              : `<button onclick="participer('${echapper(session.id)}')"
+            : `<button onclick="participer('${echapper(session.id)}')"
                    class="flex-1 ${plein ? 'bg-orange-600' : 'bg-blue-600'} text-white font-extrabold text-xs py-3 rounded-xl">
                    ${profil.abonne && !plein ? 'Participer (prioritaire)' :
-                     (plein ? 'Rejoindre la file d’attente' : 'Participer')}
+                     (!profil.abonne && avantH24 ? 'Rejoindre la liste d’attente' :
+                       (plein ? 'Rejoindre la file d’attente' : 'Participer'))}
                  </button>`)
         : '';
 
@@ -565,20 +561,20 @@
 
         ${!annulee && !profil.abonne && avantH24 ? `
           <div class="bg-amber-50 text-amber-900 text-xs font-semibold p-2.5 rounded-xl my-3 border border-amber-200">
-            ⏳ Les votes des non-adhérents et les invitations ouvrent à H-24 (${echapper(heureOuverture)}). Aucun vote ne sera enregistré avant.
+            ⏳ Tu peux voter dès maintenant : ta demande reste en attente et sera prise en compte à H-24 (${echapper(heureOuverture)}), selon les places disponibles.
           </div>` : ''}
 
         ${!annulee ? `
           <div class="flex gap-2 mt-3">
             ${boutonVote}
             ${profil.abonne ? `
-              <button ${avantH24 || dejaInvite ? 'disabled' : `onclick="ouvrirInvite('${echapper(session.id)}')"`}
-                title="${avantH24 ? `Ouverture le ${echapper(heureOuverture)}` : (dejaInvite ? 'Un seul invité par adhérent et par créneau' : '')}"
-                class="${avantH24 || dejaInvite ? 'bg-slate-200 text-slate-500' : 'bg-slate-100 text-slate-700'} font-bold text-xs px-3 py-3 rounded-xl border border-slate-300">
+              <button ${dejaInvite ? 'disabled' : `onclick="ouvrirInvite('${echapper(session.id)}')"`}
+                title="${dejaInvite ? 'Un seul invité par adhérent et par créneau' : ''}"
+                class="${dejaInvite ? 'bg-slate-200 text-slate-500' : 'bg-slate-100 text-slate-700'} font-bold text-xs px-3 py-3 rounded-xl border border-slate-300">
                 ${dejaInvite ? 'Invité ajouté' : '+ Invité'}
               </button>` : ''}
           </div>
-          ${profil.abonne && avantH24 ? `<p class="text-[11px] text-slate-500 mt-2">Les invités peuvent être inscrits à partir de H-24 (${echapper(heureOuverture)}).</p>` : ''}
+          ${profil.abonne && avantH24 ? `<p class="text-[11px] text-slate-500 mt-2">Un invité inscrit avant H-24 reste en attente jusqu’à l’ouverture (${echapper(heureOuverture)}).</p>` : ''}
           ${mesInvites.length ? `<div class="space-y-2 mt-3">${invitesHtml}</div>` : ''}` : ''}
 
         <div class="border-t border-slate-300 mt-3 pt-3 flex flex-wrap justify-between items-center gap-2">
@@ -620,10 +616,6 @@
     if (inscriptionDuMemeNom(sessionId, profil.prenom, profil.nom)) {
       return alert('Une personne portant ces prénom et nom est déjà inscrite sur ce créneau, éventuellement à l’essai ou par invitation. Contacte un administrateur en cas d’homonymie.');
     }
-    if (!profil.abonne && !nonAdherentsOuverts(session)) {
-      return alert('Les votes des non-adhérents ouvrent exactement 24 heures avant le créneau. Aucun vote n’a été enregistré.');
-    }
-
     try {
       await appelerFonctionPublique('register', {
         session_id: sessionId,
@@ -657,12 +649,6 @@
 
     const session = sessions.find(s => s.id === sessionInviteId);
     if (!session) return alert('Session introuvable.');
-    if (!nonAdherentsOuverts(session)) {
-      const ouverture = new Date(ouvertureH24(session)).toLocaleString('fr-FR', {
-        weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit'
-      });
-      return alert(`Les invitations ouvrent exactement 24 heures avant le créneau (${ouverture}). Aucun vote invité n’a été enregistré.`);
-    }
     if (inscriptionDuMemeNom(sessionInviteId, prenom, nom)) {
       return alert('Cette personne est déjà inscrite sur ce créneau, notamment si elle vient à l’essai ou a déjà été invitée. Contacte un administrateur en cas d’homonymie.');
     }

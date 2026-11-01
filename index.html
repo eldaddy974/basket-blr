@@ -49,8 +49,8 @@
 
       <label class="flex items-center justify-between gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
         <span>
-          <span class="block text-sm font-bold text-emerald-900">Abonné Saison</span>
-          <span class="block text-xs text-emerald-700">Vote direct en place confirmée</span>
+          <span class="block text-sm font-bold text-emerald-900">Adhérent à jour de cotisation</span>
+          <span class="block text-xs text-emerald-700">Prioritaire dès son vote</span>
         </span>
         <input id="profil-abonne" type="checkbox" class="w-5 h-5 accent-emerald-600">
       </label>
@@ -157,6 +157,7 @@
   const SUPABASE_URL = 'https://sgkomdvgocrmsrmcktnn.supabase.co';
   const SUPABASE_ANON_KEY = 'sb_publishable_5MB-vD9ZvTa_gfHsitfOng__XVP5PL5';
   const ADMIN_FUNCTION_NAME = 'admin-actions';
+  const PUBLIC_BOOKINGS_FUNCTION = 'public-bookings';
 
   const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -172,6 +173,7 @@
   let inscriptions = [];
   let sessionInviteId = null;
   let sessionEditionId = null;
+  let minuteurOuvertureH24 = null;
 
   function echapper(valeur) {
     return String(valeur ?? '').replace(/[&<>"']/g, c => ({
@@ -179,9 +181,50 @@
     }[c]));
   }
 
+  function normaliserNom(valeur) {
+    return String(valeur || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+      .replace(/\s+/g, ' ')
+      .toLocaleLowerCase('fr-FR');
+  }
+
   function memeNom(p1, n1, p2, n2) {
-    return String(p1 || '').trim().toLowerCase() === String(p2 || '').trim().toLowerCase()
-      && String(n1 || '').trim().toLowerCase() === String(n2 || '').trim().toLowerCase();
+    return normaliserNom(p1) === normaliserNom(p2)
+      && normaliserNom(n1) === normaliserNom(n2);
+  }
+
+  function ouvertureH24(session) {
+    return new Date(session.debut_date).getTime() - 24 * 3600000;
+  }
+
+  function nonAdherentsOuverts(session) {
+    return Date.now() >= ouvertureH24(session);
+  }
+
+  function inscriptionDuMemeNom(sessionId, prenom, nom) {
+    return inscritsPour(sessionId).find(i => memeNom(i.prenom, i.nom, prenom, nom));
+  }
+
+  function nomParrainCorrespond(invitation) {
+    return normaliserNom(invitation.invite_par_nom)
+      === normaliserNom(`${profil.prenom} ${profil.nom}`);
+  }
+
+  function programmerOuvertureH24() {
+    clearTimeout(minuteurOuvertureH24);
+    const maintenant = Date.now();
+    const prochaineOuverture = sessions
+      .map(ouvertureH24)
+      .filter(instant => instant > maintenant)
+      .sort((a, b) => a - b)[0];
+
+    if (!prochaineOuverture) return;
+    minuteurOuvertureH24 = setTimeout(() => {
+      afficherSessions();
+      programmerOuvertureH24();
+    }, prochaineOuverture - maintenant + 20);
   }
 
   function afficherErreur(message) {
@@ -251,10 +294,10 @@
       if (data && data.length) sessions = data;
 
       await rechargerInscriptions();
+      programmerOuvertureH24();
 
       supabaseClient
-        .channel('blr-inscriptions')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'inscriptions' }, rechargerInscriptions)
+        .channel('blr-sessions')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' }, rechargerTout)
         .subscribe();
     } catch (error) {
@@ -269,6 +312,7 @@
       if (error) throw error;
       if (data && data.length) sessions = data;
       await rechargerInscriptions();
+      programmerOuvertureH24();
     } catch (error) {
       afficherErreur('Impossible de lire les sessions : ' + (error.message || error));
     }
@@ -276,9 +320,8 @@
 
   async function rechargerInscriptions() {
     try {
-      const { data, error } = await supabaseClient.from('inscriptions').select('*');
-      if (error) throw error;
-      inscriptions = data || [];
+      const result = await appelerFonctionPublique('list');
+      inscriptions = result.inscriptions || [];
       cacherErreur();
       afficherSessions();
     } catch (error) {
@@ -340,6 +383,15 @@
     if (error) throw error;
     if (data?.error) throw new Error(data.error);
     if (data?.authorized === false) throw new Error('Mot de passe administrateur incorrect.');
+    return data;
+  }
+
+  async function appelerFonctionPublique(action, donnees = {}) {
+    const { data, error } = await supabaseClient.functions.invoke(PUBLIC_BOOKINGS_FUNCTION, {
+      body: { action, ...donnees }
+    });
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
     return data;
   }
 
@@ -434,19 +486,24 @@
         .filter(i => i.statut === 'waitlisted')
         .sort((a, b) => Number(a.date_demande || 0) - Number(b.date_demande || 0));
 
-      const monVote = inscrits.find(i =>
-        !i.est_invite && memeNom(i.prenom, i.nom, profil.prenom, profil.nom)
-      );
+      const inscriptionAvecMonNom = inscriptionDuMemeNom(session.id, profil.prenom, profil.nom);
+      const monVote = inscriptionAvecMonNom && !inscriptionAvecMonNom.est_invite
+        ? inscriptionAvecMonNom
+        : null;
 
-      const nomParrain = `${profil.prenom} ${profil.nom}`.trim().toLowerCase();
       const mesInvites = inscrits.filter(i =>
-        i.est_invite && String(i.invite_par_nom || '').trim().toLowerCase() === nomParrain
+        i.est_invite && nomParrainCorrespond(i)
       );
 
       const capacite = Number(session.max_capacity) || 22;
       const plein = confirmes.length >= capacite;
-      const avantH24 = (new Date(session.debut_date).getTime() - Date.now()) / 3600000 > 24;
+      const avantH24 = !nonAdherentsOuverts(session);
       const annulee = session.statut === 'annulee';
+      const dejaInscrit = Boolean(inscriptionAvecMonNom);
+      const dejaInvite = mesInvites.length > 0;
+      const heureOuverture = new Date(ouvertureH24(session)).toLocaleString('fr-FR', {
+        weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+      });
 
       const boutonVote = !annulee
         ? (monVote
@@ -454,12 +511,20 @@
                class="flex-1 bg-red-600 text-white font-extrabold text-xs py-3 rounded-xl">
                Annuler ma place (${monVote.statut === 'confirmed' ? 'Confirmée' : 'Attente'})
              </button>`
-          : `<button onclick="participer('${echapper(session.id)}')"
-               class="flex-1 ${plein ? 'bg-orange-600' : 'bg-blue-600'} text-white font-extrabold text-xs py-3 rounded-xl">
-               ${profil.abonne && !plein ? 'Participer (Confirmé direct)' :
-                 (plein ? 'Rejoindre la file d’attente' :
-                 (avantH24 && !profil.abonne ? 'Rejoindre la file d’attente (H-24)' : 'Participer'))}
-             </button>`)
+          : dejaInscrit
+            ? `<button disabled class="flex-1 bg-slate-200 text-slate-600 font-extrabold text-xs py-3 rounded-xl">
+                 Déjà inscrit sur ce créneau
+               </button>`
+            : !profil.abonne && avantH24
+              ? `<button disabled title="Ouverture le ${echapper(heureOuverture)}"
+                   class="flex-1 bg-slate-200 text-slate-600 font-extrabold text-xs py-3 rounded-xl">
+                   Ouverture non-adhérents à H-24
+                 </button>`
+              : `<button onclick="participer('${echapper(session.id)}')"
+                   class="flex-1 ${plein ? 'bg-orange-600' : 'bg-blue-600'} text-white font-extrabold text-xs py-3 rounded-xl">
+                   ${profil.abonne && !plein ? 'Participer (prioritaire)' :
+                     (plein ? 'Rejoindre la file d’attente' : 'Participer')}
+                 </button>`)
         : '';
 
       const invitesHtml = mesInvites.map(invite => `
@@ -500,17 +565,20 @@
 
         ${!annulee && !profil.abonne && avantH24 ? `
           <div class="bg-amber-50 text-amber-900 text-xs font-semibold p-2.5 rounded-xl my-3 border border-amber-200">
-            ⏳ Règle H-24 : votre vote reste en attente jusqu’à la confirmation.
+            ⏳ Les votes des non-adhérents et les invitations ouvrent à H-24 (${echapper(heureOuverture)}). Aucun vote ne sera enregistré avant.
           </div>` : ''}
 
         ${!annulee ? `
           <div class="flex gap-2 mt-3">
             ${boutonVote}
-            <button onclick="ouvrirInvite('${echapper(session.id)}')"
-              class="bg-slate-100 text-slate-700 font-bold text-xs px-3 py-3 rounded-xl border border-slate-300">
-              + Invité
-            </button>
+            ${profil.abonne ? `
+              <button ${avantH24 || dejaInvite ? 'disabled' : `onclick="ouvrirInvite('${echapper(session.id)}')"`}
+                title="${avantH24 ? `Ouverture le ${echapper(heureOuverture)}` : (dejaInvite ? 'Un seul invité par adhérent et par créneau' : '')}"
+                class="${avantH24 || dejaInvite ? 'bg-slate-200 text-slate-500' : 'bg-slate-100 text-slate-700'} font-bold text-xs px-3 py-3 rounded-xl border border-slate-300">
+                ${dejaInvite ? 'Invité ajouté' : '+ Invité'}
+              </button>` : ''}
           </div>
+          ${profil.abonne && avantH24 ? `<p class="text-[11px] text-slate-500 mt-2">Les invités peuvent être inscrits à partir de H-24 (${echapper(heureOuverture)}).</p>` : ''}
           ${mesInvites.length ? `<div class="space-y-2 mt-3">${invitesHtml}</div>` : ''}` : ''}
 
         <div class="border-t border-slate-300 mt-3 pt-3 flex flex-wrap justify-between items-center gap-2">
@@ -549,28 +617,25 @@
   async function participer(sessionId) {
     const session = sessions.find(s => s.id === sessionId);
     if (!session) return alert('Session introuvable.');
+    if (inscriptionDuMemeNom(sessionId, profil.prenom, profil.nom)) {
+      return alert('Une personne portant ces prénom et nom est déjà inscrite sur ce créneau, éventuellement à l’essai ou par invitation. Contacte un administrateur en cas d’homonymie.');
+    }
+    if (!profil.abonne && !nonAdherentsOuverts(session)) {
+      return alert('Les votes des non-adhérents ouvrent exactement 24 heures avant le créneau. Aucun vote n’a été enregistré.');
+    }
 
-    const confirmes = inscritsPour(sessionId).filter(i => i.statut === 'confirmed');
-    const avantH24 = (new Date(session.debut_date).getTime() - Date.now()) > 24 * 3600000;
-
-    let statut = 'confirmed';
-    if (confirmes.length >= (Number(session.max_capacity) || 22)) statut = 'waitlisted';
-    else if (!profil.abonne && avantH24) statut = 'waitlisted';
-
-    const { error } = await supabaseClient.from('inscriptions').insert([{
-      session_id: sessionId,
-      prenom: profil.prenom,
-      nom: profil.nom,
-      est_invite: false,
-      invite_par_nom: null,
-      est_abonne: profil.abonne,
-      statut,
-      date_demande: Date.now(),
-      reconfirme: false
-    }]);
-
-    if (error) return alert('Erreur lors du vote : ' + error.message);
-    await rechargerInscriptions();
+    try {
+      await appelerFonctionPublique('register', {
+        session_id: sessionId,
+        prenom: profil.prenom,
+        nom: profil.nom,
+        est_invite: false,
+        est_abonne: profil.abonne
+      });
+      await rechargerInscriptions();
+    } catch (error) {
+      alert('Erreur lors du vote : ' + (error.message || error));
+    }
   }
 
   function ouvrirInvite(sessionId) {
@@ -588,30 +653,37 @@
     const prenom = document.getElementById('invite-prenom').value.trim();
     const nom = document.getElementById('invite-nom').value.trim();
     if (!prenom || !nom) return alert('Prénom et nom de l’invité obligatoires.');
+    if (!profil.abonne) return alert('Seuls les adhérents à jour de cotisation peuvent inscrire un invité.');
 
     const session = sessions.find(s => s.id === sessionInviteId);
     if (!session) return alert('Session introuvable.');
+    if (!nonAdherentsOuverts(session)) {
+      const ouverture = new Date(ouvertureH24(session)).toLocaleString('fr-FR', {
+        weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit'
+      });
+      return alert(`Les invitations ouvrent exactement 24 heures avant le créneau (${ouverture}). Aucun vote invité n’a été enregistré.`);
+    }
+    if (inscriptionDuMemeNom(sessionInviteId, prenom, nom)) {
+      return alert('Cette personne est déjà inscrite sur ce créneau, notamment si elle vient à l’essai ou a déjà été invitée. Contacte un administrateur en cas d’homonymie.');
+    }
 
-    const confirmes = inscritsPour(sessionInviteId).filter(i => i.statut === 'confirmed');
-    const avantH24 = (new Date(session.debut_date).getTime() - Date.now()) > 24 * 3600000;
-    const statut = confirmes.length >= (Number(session.max_capacity) || 22) || avantH24
-      ? 'waitlisted' : 'confirmed';
+    const dejaInvite = inscritsPour(sessionInviteId).some(i => i.est_invite && nomParrainCorrespond(i));
+    if (dejaInvite) return alert('Tu as déjà inscrit un invité sur ce créneau. Un seul invité est autorisé par adhérent.');
 
-    const { error } = await supabaseClient.from('inscriptions').insert([{
-      session_id: sessionInviteId,
-      prenom,
-      nom,
-      est_invite: true,
-      invite_par_nom: `${profil.prenom} ${profil.nom}`,
-      est_abonne: false,
-      statut,
-      date_demande: Date.now(),
-      reconfirme: false
-    }]);
-
-    if (error) return alert('Erreur lors de l’inscription de l’invité : ' + error.message);
-    fermerInvite();
-    await rechargerInscriptions();
+    try {
+      await appelerFonctionPublique('register', {
+        session_id: sessionInviteId,
+        prenom,
+        nom,
+        est_invite: true,
+        est_abonne: false,
+        invite_par_nom: `${profil.prenom} ${profil.nom}`
+      });
+      fermerInvite();
+      await rechargerInscriptions();
+    } catch (error) {
+      alert('Erreur lors de l’inscription de l’invité : ' + (error.message || error));
+    }
   }
 
   async function annulerInscription(id) {
@@ -619,9 +691,17 @@
     if (!vote) return alert('Vote introuvable. Recharge la page puis réessaie.');
     if (!confirm(`Annuler le vote de ${vote.prenom} ${vote.nom} ?`)) return;
 
-    const { error } = await supabaseClient.from('inscriptions').delete().eq('id', id);
-    if (error) return alert('Erreur lors de l’annulation : ' + error.message);
-    await rechargerInscriptions();
+    try {
+      await appelerFonctionPublique('cancel', {
+        id: vote.id,
+        acteur_prenom: profil.prenom,
+        acteur_nom: profil.nom,
+        admin_password: profil.admin ? motDePasseAdminEnMemoire : ''
+      });
+      await rechargerInscriptions();
+    } catch (error) {
+      alert('Erreur lors de l’annulation : ' + (error.message || error));
+    }
   }
 
   function ouvrirEdition(sessionId) {
@@ -737,8 +817,7 @@
 
     function ligne(i, index, confirme) {
       const estMonVote = !i.est_invite && memeNom(i.prenom, i.nom, profil.prenom, profil.nom);
-      const estMonInvite = i.est_invite &&
-        String(i.invite_par_nom || '').trim().toLowerCase() === `${profil.prenom} ${profil.nom}`.trim().toLowerCase();
+      const estMonInvite = i.est_invite && nomParrainCorrespond(i);
       const peutAnnuler = profil.admin || estMonVote || estMonInvite;
 
       return `
@@ -770,6 +849,7 @@
   }
 
   demarrer();
+  setInterval(rechargerInscriptions, 15000);
 </script>
 </body>
 </html>

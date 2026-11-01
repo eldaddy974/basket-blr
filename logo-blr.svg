@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title">
+  <title id="title">BLR — Basket Loisir Réunion</title>
+  <circle cx="64" cy="64" r="62" fill="#2563eb"/>
+  <circle cx="64" cy="55" r="36" fill="#f59e0b" stroke="#fff" stroke-width="4"/>
+  <path d="M28 55h72M64 19c-13 11-20 23-20 36s7 25 20 36m0-72c13 11 20 23 20 36s-7 25-20 36" fill="none" stroke="#fff" stroke-width="3.5"/>
+  <path d="M22 55c18 8 32 12 42 12s24-4 42-12" fill="none" stroke="#fff" stroke-width="3.5"/>
+  <text x="64" y="115" fill="#fff" font-family="Arial,sans-serif" font-size="22" font-weight="800" text-anchor="middle">BLR</text>
+</svg>

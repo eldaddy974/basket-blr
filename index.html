@@ -500,7 +500,6 @@
       const avantH24 = !nonAdherentsOuverts(session);
       const annulee = session.statut === 'annulee';
       const dejaInscrit = Boolean(inscriptionAvecMonNom);
-      const dejaInvite = mesInvites.length > 0;
       const heureOuverture = new Date(ouvertureH24(session)).toLocaleString('fr-FR', {
         weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
       });
@@ -568,10 +567,10 @@
           <div class="flex gap-2 mt-3">
             ${boutonVote}
             ${profil.abonne ? `
-              <button ${dejaInvite ? 'disabled' : `onclick="ouvrirInvite('${echapper(session.id)}')"`}
-                title="${dejaInvite ? 'Un seul invité par adhérent et par créneau' : ''}"
-                class="${dejaInvite ? 'bg-slate-200 text-slate-500' : 'bg-slate-100 text-slate-700'} font-bold text-xs px-3 py-3 rounded-xl border border-slate-300">
-                ${dejaInvite ? 'Invité ajouté' : '+ Invité'}
+              <button onclick="ouvrirInvite('${echapper(session.id)}')"
+                title="Inscrire un autre invité sur ce créneau"
+                class="bg-slate-100 text-slate-700 font-bold text-xs px-3 py-3 rounded-xl border border-slate-300">
+                + Invité (${mesInvites.length})
               </button>` : ''}
           </div>
           ${profil.abonne && avantH24 ? `<p class="text-[11px] text-slate-500 mt-2">Un invité inscrit avant H-24 reste en attente jusqu’à l’ouverture (${echapper(heureOuverture)}).</p>` : ''}
@@ -652,9 +651,6 @@
     if (inscriptionDuMemeNom(sessionInviteId, prenom, nom)) {
       return alert('Cette personne est déjà inscrite sur ce créneau, notamment si elle vient à l’essai ou a déjà été invitée. Contacte un administrateur en cas d’homonymie.');
     }
-
-    const dejaInvite = inscritsPour(sessionInviteId).some(i => i.est_invite && nomParrainCorrespond(i));
-    if (dejaInvite) return alert('Tu as déjà inscrit un invité sur ce créneau. Un seul invité est autorisé par adhérent.');
 
     try {
       await appelerFonctionPublique('register', {

@@ -261,6 +261,17 @@
     return date;
   }
 
+  function libelleSession(session) {
+    let jour = String(session?.nom || '').trim()
+      .replace(/\s*[—–-]\s*Session\s*\d+\s*$/i, '')
+      .trim();
+    const horaires = String(session?.horaires || '').trim();
+    if (horaires && !jour.includes(horaires)) {
+      jour = jour ? jour + ' — ' + horaires : horaires;
+    }
+    return jour || 'Créneau';
+  }
+
   function sessionsLocales() {
     return [
       {
@@ -539,14 +550,13 @@
         <div class="flex justify-between items-start mb-3">
           <div>
             <h2 class="font-extrabold text-base ${annulee ? 'text-slate-300' : 'text-slate-100'}">
-              ${echapper(session.nom)}
+              ${echapper(libelleSession(session))}
               <span class="text-xs text-slate-300 font-normal">
                 (${new Date(session.debut_date).toLocaleDateString('fr-FR', {
                   weekday: 'long', day: 'numeric', month: 'short'
                 })})
               </span>
             </h2>
-            <p class="text-xs text-slate-300">🕒 ${echapper(session.horaires || '')}</p>
           </div>
           ${annulee
             ? '<span class="bg-slate-600 text-white font-bold text-[10px] px-2 py-1 rounded-full">ANNULÉE</span>'
@@ -692,7 +702,7 @@
     if (!session) return alert('Session introuvable.');
 
     sessionEditionId = sessionId;
-    document.getElementById('edition-nom-session').textContent = session.nom;
+    document.getElementById('edition-nom-session').textContent = libelleSession(session);
 
     const date = new Date(session.debut_date);
     const deux = n => String(n).padStart(2, '0');
@@ -763,8 +773,8 @@
     const annuler = session.statut !== 'annulee';
     const texteConfirmation = annuler ? 'ANNULER' : 'RELANCER';
     const instruction = annuler
-      ? `Veuillez reconfirmer l’annulation de « ${session.nom} ».\n\nLes inscriptions seront conservées et la session sera grisée.\n\nSaisis ANNULER pour confirmer :`
-      : `Veuillez reconfirmer la relance de « ${session.nom} ».\n\nLes inscriptions existantes seront conservées.\n\nSaisis RELANCER pour confirmer :`;
+      ? `Veuillez reconfirmer l’annulation de « ${libelleSession(session)} ».\n\nLes inscriptions seront conservées et la session sera grisée.\n\nSaisis ANNULER pour confirmer :`
+      : `Veuillez reconfirmer la relance de « ${libelleSession(session)} ».\n\nLes inscriptions existantes seront conservées.\n\nSaisis RELANCER pour confirmer :`;
 
     const saisie = prompt(instruction);
     if (saisie === null) return;
@@ -795,7 +805,7 @@
       .filter(i => i.statut === 'waitlisted')
       .sort((a, b) => Number(a.date_demande || 0) - Number(b.date_demande || 0));
 
-    document.getElementById('participants-titre').textContent = session?.nom || 'Participants';
+    document.getElementById('participants-titre').textContent = session ? libelleSession(session) : 'Participants';
 
     function ligne(i, index, confirme) {
       const estMonVote = !i.est_invite && memeNom(i.prenom, i.nom, profil.prenom, profil.nom);

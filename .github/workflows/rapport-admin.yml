@@ -22,7 +22,4 @@ jobs:
       - run: npm run report
         env:
           SUPABASE_URL: https://sgkomdvgocrmsrmcktnn.supabase.co
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          REPORT_TO: basketloisirreunion@gmail.com
-          GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}

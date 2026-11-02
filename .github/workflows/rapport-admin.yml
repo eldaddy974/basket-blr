@@ -1,0 +1,28 @@
+name: Rapport des inscriptions aux admins
+
+on:
+  schedule:
+    # 12 h à La Réunion (UTC+4), du dimanche au jeudi. GitHub peut décaler le démarrage de quelques minutes.
+    - cron: '0 8 * * 0-4'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rapport:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npx playwright install --with-deps chromium
+      - run: npm run report
+        env:
+          SUPABASE_URL: https://sgkomdvgocrmsrmcktnn.supabase.co
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          REPORT_TO: ${{ secrets.REPORT_TO }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}

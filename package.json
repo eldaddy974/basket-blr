@@ -1,0 +1,7 @@
+{
+  "name": "basket-blr-admin-report",
+  "private": true,
+  "type": "module",
+  "scripts": {"report": "node scripts/send-admin-report.mjs"},
+  "dependencies": {"@playwright/test": "^1.55.0", "nodemailer": "^7.0.5"}
+}

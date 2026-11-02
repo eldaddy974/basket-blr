@@ -1,5 +1,6 @@
 import { chromium } from '@playwright/test';
 import nodemailer from 'nodemailer';
+import { createClient } from '@supabase/supabase-js';
 
 const url = process.env.SUPABASE_URL || 'https://sgkomdvgocrmsrmcktnn.supabase.co';
 const anonKey = process.env.SUPABASE_ANON_KEY;
@@ -11,16 +12,15 @@ for (const [name, value] of Object.entries({ SUPABASE_ANON_KEY: anonKey, REPORT_
   if (!value) throw new Error(`Secret manquant : ${name}`);
 }
 
-const headers = { apikey: anonKey, Authorization: `Bearer ${anonKey}` };
-const api = `${url}/rest/v1`;
-const sessionsResponse = await fetch(`${api}/sessions?select=id,nom,horaires,debut_date,max_capacity,statut&order=debut_date.asc`, { headers });
-if (!sessionsResponse.ok) throw new Error(`Lecture des créneaux impossible (${sessionsResponse.status})`);
-const allSessions = await sessionsResponse.json();
-const bookingResponse = await fetch(`${url}/functions/v1/public-bookings`, {
-  method: 'POST', headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify({ action: 'list' }),
-});
-if (!bookingResponse.ok) throw new Error(`Lecture des inscriptions impossible (${bookingResponse.status})`);
-const { inscriptions = [] } = await bookingResponse.json();
+const supabase = createClient(url, anonKey);
+const { data: allSessions, error: sessionsError } = await supabase
+  .from('sessions')
+  .select('id,nom,horaires,debut_date,max_capacity,statut')
+  .order('debut_date', { ascending: true });
+if (sessionsError) throw new Error(`Lecture des créneaux impossible : ${sessionsError.message}`);
+const { data: bookingData, error: bookingsError } = await supabase.functions.invoke('public-bookings', { body: { action: 'list' } });
+if (bookingsError) throw new Error(`Lecture des inscriptions impossible : ${bookingsError.message}`);
+const inscriptions = bookingData?.inscriptions || [];
 
 const now = Date.now();
 const upcoming = allSessions.filter(s => s.statut !== 'annulee' && new Date(s.debut_date).getTime() >= now)

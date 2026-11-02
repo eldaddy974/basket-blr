@@ -3,12 +3,12 @@ import nodemailer from 'nodemailer';
 import { createClient } from '@supabase/supabase-js';
 
 const url = process.env.SUPABASE_URL || 'https://sgkomdvgocrmsrmcktnn.supabase.co';
-const anonKey = process.env.SUPABASE_ANON_KEY;
-const to = process.env.REPORT_TO;
-const gmailUser = process.env.GMAIL_USER;
+const anonKey = process.env.SUPABASE_ANON_KEY || 'sb_publishable_5MB-vD9ZvTa_gfHsitfOng__XVP5PL5';
+const to = process.env.REPORT_TO || 'basketloisirreunion@gmail.com';
+const gmailUser = process.env.GMAIL_USER || 'basketloisirreunion@gmail.com';
 const gmailPassword = process.env.GMAIL_APP_PASSWORD;
 
-for (const [name, value] of Object.entries({ SUPABASE_ANON_KEY: anonKey, REPORT_TO: to, GMAIL_USER: gmailUser, GMAIL_APP_PASSWORD: gmailPassword })) {
+for (const [name, value] of Object.entries({ GMAIL_APP_PASSWORD: gmailPassword })) {
   if (!value) throw new Error(`Secret manquant : ${name}`);
 }
 

@@ -2,8 +2,8 @@ name: Rapport des inscriptions aux admins
 
 on:
   schedule:
-    # 12 h à La Réunion (UTC+4), du dimanche au jeudi. GitHub peut décaler le démarrage de quelques minutes.
-    - cron: '0 8 * * 0-4'
+    # 12 h 05 à La Réunion (UTC+4), du dimanche au jeudi; décalé de 5 minutes pour éviter le pic de charge à l’heure pile.
+    - cron: '5 8 * * 0-4'
   workflow_dispatch:
 
 permissions:

@@ -32,6 +32,17 @@
 
   <main id="sessions-container" class="max-w-md mx-auto p-4 space-y-4"></main>
 
+  <section id="recap-container" class="hidden max-w-6xl mx-auto px-4 mt-10">
+    <div class="mb-3 flex flex-wrap items-end justify-between gap-2">
+      <div>
+        <h2 class="text-xl font-extrabold text-slate-100">Récapitulatif des inscriptions</h2>
+        <p class="text-xs text-slate-300">Confirmés et file d’attente des deux prochains créneaux</p>
+      </div>
+      <p id="recap-mise-a-jour" class="text-[11px] text-slate-400"></p>
+    </div>
+    <div id="recap-listes" class="grid grid-cols-1 items-start gap-4 md:grid-cols-2"></div>
+  </section>
+
   <!-- PROFIL -->
   <div id="modal-profil" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
     <div class="bg-slate-800 text-slate-100 rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-xl max-h-[90vh] overflow-y-auto">
@@ -617,6 +628,89 @@
 
       container.appendChild(carte);
     });
+    afficherRecap();
+  }
+
+  function afficherRecap() {
+    const section = document.getElementById('recap-container');
+    const listes = document.getElementById('recap-listes');
+    const miseAJour = document.getElementById('recap-mise-a-jour');
+    if (!section || !listes || !miseAJour) return;
+
+    const maintenant = Date.now();
+    const prochains = sessions
+      .filter(s => s.statut !== 'annulee'
+        && new Date(s.debut_date).getTime() >= maintenant
+        && new Date(s.debut_date).getTime() < maintenant + 8 * 24 * 60 * 60 * 1000)
+      .sort((a, b) => new Date(a.debut_date) - new Date(b.debut_date))
+      .slice(0, 2);
+
+    miseAJour.textContent = 'Actualisé à ' + new Date().toLocaleTimeString('fr-FR', {
+      hour: '2-digit', minute: '2-digit'
+    }) + ' · rafraîchi automatiquement toutes les 15 s';
+
+    if (!prochains.length) {
+      listes.innerHTML = '<p class="rounded-xl border border-slate-700 bg-slate-800 p-4 text-sm text-slate-300">Aucun créneau à venir.</p>';
+      section.classList.remove('hidden');
+      return;
+    }
+
+    const carteRecap = session => {
+      const tous = inscritsPour(session.id);
+      const confirmes = tous.filter(i => i.statut === 'confirmed');
+      const attente = tous
+        .filter(i => i.statut !== 'confirmed')
+        .sort((a, b) => Number(a.date_demande || 0) - Number(b.date_demande || 0));
+      const confirmesAffiches = confirmes.slice(0, 30);
+      const attenteAffichee = attente.slice(0, Math.max(0, 30 - confirmesAffiches.length));
+      const masque = Math.max(0, confirmes.length + attente.length - 30);
+      const jour = new Intl.DateTimeFormat('fr-FR', {
+        weekday: 'long', day: '2-digit', month: 'long',
+        timeZone: 'Indian/Reunion'
+      }).format(new Date(session.debut_date));
+      const estMardi = new Intl.DateTimeFormat('en-US', {
+        weekday: 'long', timeZone: 'Indian/Reunion'
+      }).format(new Date(session.debut_date)) === 'Tuesday';
+      const bordure = estMardi ? 'border-blue-500' : 'border-orange-500';
+      const texteJour = estMardi ? 'text-blue-200' : 'text-orange-200';
+      const compte = Number(session.max_capacity) || 22;
+
+      const ligne = (inscription, index, enAttente) => `
+        <li class="flex flex-wrap items-baseline gap-x-1 gap-y-0.5 rounded-lg border p-2 text-xs leading-snug ${
+          enAttente ? 'border-amber-800 bg-amber-950/70' : 'border-slate-600 bg-slate-700/80'
+        }">
+          <span class="font-bold text-slate-100">${index + 1}. ${echapper(inscription.prenom)} ${echapper(inscription.nom)}</span>
+          ${inscription.est_invite ? `<span class="text-slate-300">(invité par ${echapper(inscription.invite_par_nom || '')})</span>` : ''}
+          <span class="w-full text-[10px] text-slate-300">🕒 ${echapper(formatHorodatage(inscription.date_demande))}</span>
+        </li>`;
+
+      const joueurs = [
+        ...confirmesAffiches.map((i, n) => ligne(i, n, false)),
+        ...attenteAffichee.map((i, n) => ligne(i, confirmesAffiches.length + n, true))
+      ].join('');
+
+      return `
+        <article class="overflow-hidden rounded-2xl border-2 ${bordure} bg-slate-800 p-3 shadow-sm">
+          <header class="mb-3 border-b border-slate-600 pb-2">
+            <div class="flex flex-wrap items-baseline justify-between gap-2">
+              <h3 class="font-extrabold ${texteJour}">${echapper(jour)} — ${echapper(libelleSession(session).replace(/^.*?\s+—\s+/, ''))}</h3>
+              <span class="rounded-full bg-emerald-900 px-2 py-1 text-xs font-extrabold text-emerald-200">${confirmes.length} / ${compte}</span>
+            </div>
+            <p class="mt-1 text-xs text-slate-300">${echapper(new Date(session.debut_date).toLocaleDateString('fr-FR', {
+              weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
+              timeZone: 'Indian/Reunion'
+            }))} à ${echapper(session.horaires || '')}</p>
+          </header>
+          <h4 class="mb-1 text-[11px] font-extrabold uppercase tracking-wide text-slate-300">Confirmés (${confirmes.length})</h4>
+          <ol class="space-y-1">${confirmesAffiches.map((i,n)=>ligne(i,n,false)).join('') || '<li class="text-xs italic text-slate-400">Aucun joueur confirmé</li>'}</ol>
+          <h4 class="mb-1 mt-3 text-[11px] font-extrabold uppercase tracking-wide text-slate-300">File d’attente (${attente.length})</h4>
+          <ol class="space-y-1">${attenteAffichee.map((i,n)=>ligne(i,confirmesAffiches.length+n,true)).join('') || '<li class="text-xs italic text-slate-400">File d’attente vide</li>'}</ol>
+          ${masque ? `<p class="mt-2 text-[10px] italic text-slate-400">Affichage limité aux 30 premiers joueurs (${masque} non affiché(s)).</p>` : ''}
+        </article>`;
+    };
+
+    listes.innerHTML = prochains.map(carteRecap).join('');
+    section.classList.remove('hidden');
   }
 
   async function participer(sessionId) {

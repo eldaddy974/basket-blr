@@ -684,16 +684,11 @@
           <span class="w-full text-[10px] text-slate-300">🕒 ${echapper(formatHorodatage(inscription.date_demande))}</span>
         </li>`;
 
-      const joueurs = [
-        ...confirmesAffiches.map((i, n) => ligne(i, n, false)),
-        ...attenteAffichee.map((i, n) => ligne(i, confirmesAffiches.length + n, true))
-      ].join('');
-
       return `
         <article class="overflow-hidden rounded-2xl border-2 ${bordure} bg-slate-800 p-3 shadow-sm">
           <header class="mb-3 border-b border-slate-600 pb-2">
             <div class="flex flex-wrap items-baseline justify-between gap-2">
-              <h3 class="font-extrabold ${texteJour}">${echapper(jour)} — ${echapper(libelleSession(session).replace(/^.*?\s+—\s+/, ''))}</h3>
+              <h3 class="font-extrabold ${texteJour}">${echapper(jour.charAt(0).toLocaleUpperCase('fr-FR') + jour.slice(1))} — ${echapper(libelleSession(session).replace(/^.*?\s+—\s+/, ''))}</h3>
               <span class="rounded-full bg-emerald-900 px-2 py-1 text-xs font-extrabold text-emerald-200">${confirmes.length} / ${compte}</span>
             </div>
             <p class="mt-1 text-xs text-slate-300">${echapper(new Date(session.debut_date).toLocaleDateString('fr-FR', {
@@ -704,7 +699,7 @@
           <h4 class="mb-1 text-[11px] font-extrabold uppercase tracking-wide text-slate-300">Confirmés (${confirmes.length})</h4>
           <ol class="space-y-1">${confirmesAffiches.map((i,n)=>ligne(i,n,false)).join('') || '<li class="text-xs italic text-slate-400">Aucun joueur confirmé</li>'}</ol>
           <h4 class="mb-1 mt-3 text-[11px] font-extrabold uppercase tracking-wide text-slate-300">File d’attente (${attente.length})</h4>
-          <ol class="space-y-1">${attenteAffichee.map((i,n)=>ligne(i,confirmesAffiches.length+n,true)).join('') || '<li class="text-xs italic text-slate-400">File d’attente vide</li>'}</ol>
+          <ol class="space-y-1">${attenteAffichee.map((i,n)=>ligne(i,n,true)).join('') || '<li class="text-xs italic text-slate-400">File d’attente vide</li>'}</ol>
           ${masque ? `<p class="mt-2 text-[10px] italic text-slate-400">Affichage limité aux 30 premiers joueurs (${masque} non affiché(s)).</p>` : ''}
         </article>`;
     };

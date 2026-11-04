@@ -32,7 +32,7 @@
 
   <main id="sessions-container" class="max-w-6xl mx-auto grid grid-cols-2 items-start gap-3 p-3"></main>
 
-  <section id="recap-container" class="hidden">
+  <section id="recap-container" class="max-w-6xl mx-auto px-3 mt-3">
     <div class="mb-3 flex flex-wrap items-end justify-between gap-2">
       <div>
         <h2 class="text-xl font-extrabold text-slate-100">Récapitulatif des inscriptions</h2>
@@ -40,7 +40,7 @@
       </div>
       <p id="recap-mise-a-jour" class="text-[11px] text-slate-400"></p>
     </div>
-    <div id="recap-listes" class="grid grid-cols-1 items-start gap-4 md:grid-cols-2"></div>
+    <div id="recap-listes" class="grid grid-cols-2 items-start gap-3"></div>
   </section>
 
   <!-- PROFIL -->
@@ -689,41 +689,42 @@
       const compte = Number(session.max_capacity) || 22;
 
       const ligne = (inscription, index, enAttente) => `
-        <li class="flex flex-wrap items-baseline gap-x-1 gap-y-0.5 rounded-lg border p-2 text-xs leading-snug ${
+        <li class="rounded-md border px-1.5 py-1 text-[10px] leading-tight ${
           enAttente ? 'border-amber-800 bg-amber-950/70' : 'border-slate-600 bg-slate-700/80'
         }">
           <span class="font-bold text-slate-100">${index + 1}. ${echapper(inscription.prenom)} ${echapper(inscription.nom)}</span>
-          ${inscription.est_invite ? `<span class="text-slate-300">(invité par ${echapper(inscription.invite_par_nom || '')})</span>` : ''}
-          <span class="w-full text-[10px] text-slate-300">🕒 ${echapper(formatHorodatage(inscription.date_demande))}</span>
+          ${inscription.est_invite ? `<span class="text-slate-300"> (invité par ${echapper(inscription.invite_par_nom || '')})</span>` : ''}
+          <span class="mt-0.5 block text-[9px] text-slate-300">🕒 ${echapper(formatHorodatage(inscription.date_demande))}</span>
         </li>`;
 
       return `
-        <article class="overflow-hidden rounded-2xl border-2 ${bordure} bg-slate-800 p-3 shadow-sm">
-          <header class="mb-3 border-b border-slate-600 pb-2">
+        <article class="min-w-0 overflow-hidden rounded-xl border-2 ${bordure} bg-slate-800 p-2 shadow-sm">
+          <header class="mb-2 border-b border-slate-600 pb-1.5">
             <div class="flex flex-wrap items-baseline justify-between gap-2">
-              <h3 class="font-extrabold ${texteJour}">${echapper(jour.charAt(0).toLocaleUpperCase('fr-FR') + jour.slice(1))} — ${echapper(libelleSession(session).replace(/^.*?\s+—\s+/, ''))}</h3>
+              <h3 class="text-xs font-extrabold ${texteJour}">${echapper(jour.charAt(0).toLocaleUpperCase('fr-FR') + jour.slice(1))} — ${echapper(libelleSession(session).replace(/^.*?\s+—\s+/, ''))}</h3>
               <span class="rounded-full bg-emerald-900 px-2 py-1 text-xs font-extrabold text-emerald-200">${confirmes.length} / ${compte}</span>
             </div>
-            <p class="mt-1 text-xs text-slate-300">${echapper(new Date(session.debut_date).toLocaleDateString('fr-FR', {
+            <p class="mt-1 text-[10px] text-slate-300">${echapper(new Date(session.debut_date).toLocaleDateString('fr-FR', {
               weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
               timeZone: 'Indian/Reunion'
             }))} à ${echapper(session.horaires || '')}</p>
           </header>
-          <h4 class="mb-1 text-[11px] font-extrabold uppercase tracking-wide text-slate-300">Confirmés (${confirmes.length})</h4>
-          <ol class="space-y-1">${confirmesAffiches.map((i,n)=>ligne(i,n,false)).join('') || '<li class="text-xs italic text-slate-400">Aucun joueur confirmé</li>'}</ol>
-          <h4 class="mb-1 mt-3 text-[11px] font-extrabold uppercase tracking-wide text-slate-300">File d’attente (${attente.length})</h4>
-          <ol class="space-y-1">${attenteAffichee.map((i,n)=>ligne(i,n,true)).join('') || '<li class="text-xs italic text-slate-400">File d’attente vide</li>'}</ol>
+          <div class="grid grid-cols-2 gap-1.5">
+            <div class="min-w-0">
+              <h4 class="mb-1 text-[9px] font-extrabold uppercase tracking-wide text-slate-300">Confirmés (${confirmes.length})</h4>
+              <ol class="space-y-0.5">${confirmesAffiches.map((i,n)=>ligne(i,n,false)).join('') || '<li class="text-[10px] italic text-slate-400">Aucun confirmé</li>'}</ol>
+            </div>
+            <div class="min-w-0">
+              <h4 class="mb-1 text-[9px] font-extrabold uppercase tracking-wide text-slate-300">Attente (${attente.length})</h4>
+              <ol class="space-y-0.5">${attenteAffichee.map((i,n)=>ligne(i,n,true)).join('') || '<li class="text-[10px] italic text-slate-400">File vide</li>'}</ol>
+            </div>
+          </div>
           ${masque ? `<p class="mt-2 text-[10px] italic text-slate-400">Affichage limité aux 30 premiers joueurs (${masque} non affiché(s)).</p>` : ''}
         </article>`;
     };
 
     listes.innerHTML = prochains.map(carteRecap).join('');
-    const colonnes = document.querySelectorAll('#sessions-container [data-session-id]');
-    colonnes.forEach(colonne => {
-      const index = prochains.findIndex(s => s.id === colonne.dataset.sessionId);
-      if (index >= 0 && listes.children[index]) colonne.appendChild(listes.children[index].cloneNode(true));
-    });
-    section.classList.add('hidden');
+    section.classList.remove('hidden');
   }
 
   async function participer(sessionId) {

@@ -22,11 +22,30 @@ const { data: bookingData, error: bookingsError } = await supabase.functions.inv
 if (bookingsError) throw new Error(`Lecture des inscriptions impossible : ${bookingsError.message}`);
 const inscriptions = bookingData?.inscriptions || [];
 
-const now = Date.now();
-const upcoming = allSessions.filter(s => s.statut !== 'annulee' && new Date(s.debut_date).getTime() >= now)
-  .filter(s => new Date(s.debut_date).getTime() < now + 8 * 24 * 60 * 60 * 1000)
-  .slice(0, 2);
-if (!upcoming.length) throw new Error('Aucun créneau à venir dans les huit prochains jours.');
+const reunionParts = date => Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Indian/Reunion', year: 'numeric', month: '2-digit', day: '2-digit',
+  hour: '2-digit', hourCycle: 'h23'
+}).formatToParts(date).map(part => [part.type, part.value]));
+const maintenantLocal = reunionParts(new Date());
+const jourLocal = new Date(Date.UTC(+maintenantLocal.year, +maintenantLocal.month - 1, +maintenantLocal.day));
+const jourSemaine = jourLocal.getUTCDay();
+const lundi = new Date(jourLocal);
+lundi.setUTCDate(lundi.getUTCDate() - ((jourSemaine + 6) % 7)
+  + ((jourSemaine === 5 && +maintenantLocal.hour >= 6) || jourSemaine === 6 || jourSemaine === 0 ? 7 : 0));
+const vendredi = new Date(lundi);
+vendredi.setUTCDate(vendredi.getUTCDate() + 4);
+const dateCle = date => {
+  const p = reunionParts(new Date(date));
+  return p.year + '-' + p.month + '-' + p.day;
+};
+const debutSemaine = lundi.toISOString().slice(0, 10);
+const finSemaine = vendredi.toISOString().slice(0, 10);
+const upcoming = allSessions.filter(s => {
+  if (s.statut === 'annulee') return false;
+  const date = dateCle(s.debut_date);
+  return date >= debutSemaine && date <= finSemaine;
+}).slice(0, 2);
+if (!upcoming.length) throw new Error('Aucun créneau dans la semaine de réservation en cours.');
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const dateFmt = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Indian/Reunion', weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -55,8 +74,8 @@ try {
   const transport = nodemailer.createTransport({ service: 'gmail', auth: { user: gmailUser, pass: gmailPassword } });
   await transport.sendMail({
     from: `Basket BLR <${gmailUser}>`, to,
-    subject: `Basket BLR — listes des ${upcoming.length} prochains créneaux`,
-    text: `Bonjour,\n\nVoici la capture des listes détaillées des prochains créneaux. Rapport généré le ${reportDate}.`,
+    subject: `Basket BLR — listes des ${upcoming.length} créneaux de la semaine`,
+    text: `Bonjour,\n\nVoici la capture des listes détaillées des créneaux de la semaine. Rapport généré le ${reportDate}.`,
     html: `<p>Bonjour,</p><p>Voici les listes détaillées des prochains créneaux en pièce jointe.</p><p>Rapport généré le ${escapeHtml(reportDate)}.</p>`,
     attachments: [{ filename: 'listes-basket-blr.png', content: image, contentType: 'image/png' }],
   });

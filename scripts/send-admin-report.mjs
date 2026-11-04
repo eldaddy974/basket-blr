@@ -59,7 +59,15 @@ const card = session => {
   const dayName = new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: 'Indian/Reunion' })
     .format(new Date(session.debut_date)).toLowerCase();
   const theme = dayName === 'tuesday' ? 'tuesday' : 'thursday';
-  const row = (i, n, waitingList) => `<div class="person ${waitingList ? 'waiting' : ''}"><b>${n}. ${escapeHtml(i.prenom)} ${escapeHtml(i.nom)}</b>${i.est_invite ? `<span>(invité par ${escapeHtml(i.invite_par_nom)})</span>` : ''}<small>${dateFmt.format(new Date(Number(i.date_demande) || i.date_demande))}</small></div>`;
+  const horodatageCourt = value => {
+    const d = new Date(Number(value) || value);
+    const p = Object.fromEntries(new Intl.DateTimeFormat('fr-FR', {
+      timeZone: 'Indian/Reunion', weekday: 'short', day: 'numeric',
+      month: 'short', hour: '2-digit', minute: '2-digit'
+    }).formatToParts(d).map(part => [part.type, part.value]));
+    return `${p.weekday} ${p.day} ${p.month} · ${p.hour}h${p.minute}`;
+  };
+  const row = (i, n, waitingList) => `<div class="person ${waitingList ? 'waiting' : ''}"><b>${n}. ${escapeHtml(i.prenom)} ${escapeHtml(i.nom)}</b>${i.est_invite ? `<span>(invité par ${escapeHtml(i.invite_par_nom)})</span>` : ''}<small>${escapeHtml(horodatageCourt(i.date_demande))}</small></div>`;
   const title = `${session.nom || 'Basket'} — ${session.horaires || dateFmt.format(new Date(session.debut_date))}`;
   return `<section class="session ${theme}"><header><h2>${escapeHtml(title)}</h2><b class="count">${confirmedAll.length} / ${session.max_capacity || 22}</b><p>${dateFmt.format(new Date(session.debut_date))}</p></header><h3>Confirmés (${confirmedAll.length})</h3><div class="people">${confirmed.map((i,n)=>row(i,n+1,false)).join('')||'<p class="empty">Aucune inscription confirmée</p>'}</div><h3>File d’attente (${waitingAll.length})</h3><div class="people">${waiting.map((i,n)=>row(i,confirmed.length+n+1,true)).join('')||'<p class="empty">File d’attente vide</p>'}</div>${hidden ? `<p class="limit">Affichage limité aux 30 premiers joueurs (${hidden} non affiché(s)).</p>` : ''}</section>`;
 };

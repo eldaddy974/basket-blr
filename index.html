@@ -36,7 +36,7 @@
     <div class="mb-3 flex flex-wrap items-end justify-between gap-2">
       <div>
         <h2 class="text-xl font-extrabold text-slate-100">Récapitulatif des inscriptions</h2>
-        <p class="text-xs text-slate-300">Confirmés et file d’attente des deux prochains créneaux</p>
+        <p class="text-xs text-slate-300">Confirmés et file d’attente des créneaux de la semaine</p>
       </div>
       <p id="recap-mise-a-jour" class="text-[11px] text-slate-400"></p>
     </div>
@@ -587,7 +587,9 @@
           </div>
           ${annulee
             ? '<span class="bg-slate-600 text-white font-bold text-[10px] px-2 py-1 rounded-full">ANNULÉE</span>'
-            : `<span class="bg-emerald-900 text-emerald-200 font-extrabold text-xs px-2.5 py-1 rounded-full">${confirmes.length} / ${capacite}</span>`}
+            : estPassee
+              ? '<span class="bg-slate-600 text-white font-bold text-[10px] px-2 py-1 rounded-full">TERMINÉE</span>'
+              : `<span class="bg-emerald-900 text-emerald-200 font-extrabold text-xs px-2.5 py-1 rounded-full">${confirmes.length} / ${capacite}</span>`}
         </div>
 
         ${annulee ? `
@@ -658,9 +660,7 @@
     const maintenant = Date.now();
     const prochains = sessionsDuCycle().filter(s => s.statut !== 'annulee');
 
-    miseAJour.textContent = 'Actualisé à ' + new Date().toLocaleTimeString('fr-FR', {
-      hour: '2-digit', minute: '2-digit'
-    }) + ' · rafraîchi automatiquement toutes les 15 s';
+    miseAJour.textContent = 'Actualisé à ' + new Intl.DateTimeFormat('fr-FR', {hour:'2-digit',minute:'2-digit',timeZone:'Indian/Reunion'}).format(new Date()) + ' · remise à zéro vendredi à 06:00 · actualisation toutes les 15 s';
 
     if (!prochains.length) {
       listes.innerHTML = '<p class="rounded-xl border border-slate-700 bg-slate-800 p-4 text-sm text-slate-300">Aucun créneau à venir.</p>';

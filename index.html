@@ -30,9 +30,9 @@
 
   <div id="message-erreur" class="hidden m-4 rounded-xl border border-red-800 bg-red-950 p-4 text-sm font-semibold text-red-200"></div>
 
-  <main id="sessions-container" class="max-w-md mx-auto p-4 space-y-4"></main>
+  <main id="sessions-container" class="max-w-6xl mx-auto grid grid-cols-1 items-start gap-4 p-4 md:grid-cols-2"></main>
 
-  <section id="recap-container" class="hidden max-w-6xl mx-auto px-4 mt-10">
+  <section id="recap-container" class="hidden">
     <div class="mb-3 flex flex-wrap items-end justify-between gap-2">
       <div>
         <h2 class="text-xl font-extrabold text-slate-100">Récapitulatif des inscriptions</h2>
@@ -497,11 +497,26 @@
     return inscriptions.filter(i => i && i.session_id === sessionId);
   }
 
+  function sessionsDuCycle() {
+    const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {timeZone:'Indian/Reunion',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',hourCycle:'h23'}).formatToParts(new Date()).map(x => [x.type,x.value]));
+    const today = new Date(Date.UTC(+p.year,+p.month-1,+p.day));
+    const dow = today.getUTCDay();
+    const lundi = new Date(today);
+    lundi.setUTCDate(lundi.getUTCDate() - ((dow+6)%7) + ((dow===5 && +p.hour>=6 || dow===6 || dow===0) ? 7 : 0));
+    const vendredi = new Date(lundi); vendredi.setUTCDate(vendredi.getUTCDate()+4);
+    const cle = d => { const q = Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'Indian/Reunion',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(d)).map(x=>[x.type,x.value])); return q.year+'-'+q.month+'-'+q.day; };
+    return sessions.filter(x => cle(x.debut_date)>=lundi.toISOString().slice(0,10) && cle(x.debut_date)<=vendredi.toISOString().slice(0,10)).sort((a,b)=>new Date(a.debut_date)-new Date(b.debut_date)).slice(0,2);
+  }
   function afficherSessions() {
     const container = document.getElementById('sessions-container');
     container.innerHTML = '';
+    const ancienRecap = document.getElementById('recap-listes');
+    if (ancienRecap) ancienRecap.innerHTML = '';
 
-    sessions.forEach(session => {
+    sessionsDuCycle().forEach(session => {
+      const colonne = document.createElement('div');
+      colonne.className = 'flex min-w-0 flex-col gap-3';
+      colonne.dataset.sessionId = session.id;
       const inscrits = inscritsPour(session.id);
       const confirmes = inscrits.filter(i => i.statut === 'confirmed');
       const attente = inscrits
@@ -521,12 +536,13 @@
       const plein = confirmes.length >= capacite;
       const avantH24 = !nonAdherentsOuverts(session);
       const annulee = session.statut === 'annulee';
+      const estPassee = new Date(session.debut_date).getTime() <= Date.now();
       const dejaInscrit = Boolean(inscriptionAvecMonNom);
       const heureOuverture = new Date(ouvertureH24(session)).toLocaleString('fr-FR', {
         weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
       });
 
-      const boutonVote = !annulee
+      const boutonVote = !annulee && !estPassee
         ? (monVote
           ? `<button onclick="annulerInscription('${echapper(monVote.id)}')"
                class="flex-1 bg-red-600 text-white font-extrabold text-xs py-3 rounded-xl">
@@ -584,7 +600,7 @@
             ⏳ Tu peux voter dès maintenant : ta demande reste en attente et sera prise en compte à H-24 (${echapper(heureOuverture)}), selon les places disponibles.
           </div>` : ''}
 
-        ${!annulee ? `
+        ${!annulee && !estPassee ? `
           <div class="flex gap-2 mt-3">
             ${boutonVote}
             ${profil.prenom && profil.nom ? `
@@ -626,7 +642,9 @@
             </details>` : ''}
         </div>`;
 
-      container.appendChild(carte);
+      if (estPassee && !annulee) carte.insertAdjacentHTML('beforeend', '<p class="mt-3 text-[11px] text-slate-300">Créneau passé — inscriptions conservées jusqu’à la remise à zéro du vendredi matin.</p>');
+      colonne.appendChild(carte);
+      container.appendChild(colonne);
     });
     afficherRecap();
   }
@@ -638,12 +656,7 @@
     if (!section || !listes || !miseAJour) return;
 
     const maintenant = Date.now();
-    const prochains = sessions
-      .filter(s => s.statut !== 'annulee'
-        && new Date(s.debut_date).getTime() >= maintenant
-        && new Date(s.debut_date).getTime() < maintenant + 8 * 24 * 60 * 60 * 1000)
-      .sort((a, b) => new Date(a.debut_date) - new Date(b.debut_date))
-      .slice(0, 2);
+    const prochains = sessionsDuCycle().filter(s => s.statut !== 'annulee');
 
     miseAJour.textContent = 'Actualisé à ' + new Date().toLocaleTimeString('fr-FR', {
       hour: '2-digit', minute: '2-digit'
@@ -705,7 +718,12 @@
     };
 
     listes.innerHTML = prochains.map(carteRecap).join('');
-    section.classList.remove('hidden');
+    const colonnes = document.querySelectorAll('#sessions-container [data-session-id]');
+    colonnes.forEach(colonne => {
+      const index = prochains.findIndex(s => s.id === colonne.dataset.sessionId);
+      if (index >= 0 && listes.children[index]) colonne.appendChild(listes.children[index].cloneNode(true));
+    });
+    section.classList.add('hidden');
   }
 
   async function participer(sessionId) {

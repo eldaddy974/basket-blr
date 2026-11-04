@@ -720,15 +720,15 @@
               timeZone: 'Indian/Reunion'
             }))} à ${echapper(session.horaires || '')}</p>
           </header>
-          <div class="grid grid-cols-2 gap-1.5">
-            <div class="min-w-0">
+          <div class="space-y-2">
+            <section>
               <h4 class="mb-1 text-[9px] font-extrabold uppercase tracking-wide text-slate-300">Confirmés (${confirmes.length})</h4>
-              <ol class="space-y-0.5">${confirmesAffiches.map((i,n)=>ligne(i,n,false)).join('') || '<li class="text-[10px] italic text-slate-400">Aucun confirmé</li>'}</ol>
-            </div>
-            <div class="min-w-0">
+              <ol class="grid grid-cols-2 gap-1">${confirmesAffiches.map((i,n)=>ligne(i,n,false)).join('') || '<li class="text-[10px] italic text-slate-400">Aucun confirmé</li>'}</ol>
+            </section>
+            <section>
               <h4 class="mb-1 text-[9px] font-extrabold uppercase tracking-wide text-slate-300">Attente (${attente.length})</h4>
-              <ol class="space-y-0.5">${attenteAffichee.map((i,n)=>ligne(i,n,true)).join('') || '<li class="text-[10px] italic text-slate-400">File vide</li>'}</ol>
-            </div>
+              <ol class="grid grid-cols-2 gap-1">${attenteAffichee.map((i,n)=>ligne(i,n,true)).join('') || '<li class="text-[10px] italic text-slate-400">File vide</li>'}</ol>
+            </section>
           </div>
           ${masque ? `<p class="mt-2 text-[10px] italic text-slate-400">Affichage limité aux 30 premiers joueurs (${masque} non affiché(s)).</p>` : ''}
         </article>`;

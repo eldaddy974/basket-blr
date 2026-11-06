@@ -600,7 +600,7 @@
             ? '<span class="bg-slate-600 text-white font-bold text-[10px] px-2 py-1 rounded-full">ANNULÉE</span>'
             : estPassee
               ? '<span class="bg-slate-600 text-white font-bold text-[10px] px-2 py-1 rounded-full">TERMINÉE</span>'
-              : `<span class="bg-emerald-900 text-emerald-200 font-extrabold text-xs px-2.5 py-1 rounded-full">${confirmes.length} / ${capacite}</span>`}
+              : `<span class="bg-emerald-900 text-emerald-200 font-extrabold text-xs px-2.5 py-1 rounded-full">${confirmes.length} / ${capacite} places</span>`}
         </div>
 
         ${annulee ? `
@@ -713,7 +713,7 @@
           <header class="mb-2 border-b border-slate-600 pb-1.5">
             <div class="flex flex-wrap items-baseline justify-between gap-2">
               <h3 class="text-xs font-extrabold ${texteJour}">${echapper(jour.charAt(0).toLocaleUpperCase('fr-FR') + jour.slice(1))} — ${echapper(libelleSession(session).replace(/^.*?\s+—\s+/, ''))}</h3>
-              <span class="rounded-full bg-emerald-900 px-2 py-1 text-xs font-extrabold text-emerald-200">${confirmes.length} / ${compte}</span>
+              <span class="rounded-full bg-emerald-900 px-2 py-1 text-xs font-extrabold text-emerald-200">${confirmes.length} / ${compte} places</span>
             </div>
             <p class="mt-1 text-[10px] text-slate-300">${echapper(new Date(session.debut_date).toLocaleDateString('fr-FR', {
               weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',

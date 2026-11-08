@@ -159,9 +159,12 @@
         <button onclick="fermerGestionAdmin()" class="text-blue-300 font-bold">Fermer</button>
       </div>
       <section class="rounded-xl border border-slate-600 bg-slate-900/60 p-3 sm:p-4">
-        <h3 class="font-extrabold text-sm">Adhérents à jour de cotisation</h3>
-        <p id="admin-membres-etat" class="mt-2 text-xs leading-relaxed text-slate-300">La liste HelloAsso n’est pas encore connectée. La case « adhérent » du profil ne permet pas de vérifier les cotisations.</p>
-        <div id="admin-membres-liste" class="mt-3"></div>
+        <div class="flex items-center justify-between gap-2">
+          <div><h3 class="font-extrabold text-sm">Adhérents à jour de cotisation</h3><p class="mt-1 text-[11px] text-slate-300">Adhésions payées · saison 2026–2027 · triées par nom de famille</p></div>
+          <button id="admin-membres-actualiser" onclick="chargerMembresHelloAsso()" class="shrink-0 rounded-lg bg-blue-700 px-3 py-2 text-xs font-bold text-white">Actualiser</button>
+        </div>
+        <p id="admin-membres-etat" class="mt-2 text-xs text-slate-300">Chargement de la liste HelloAsso…</p>
+        <div id="admin-membres-liste" class="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5"></div>
       </section>
       <section class="mt-4"><h3 class="font-extrabold text-sm">Votes de la semaine — annulations</h3><div id="admin-votes-etat" class="mt-1 text-xs text-slate-300">Chargement des votes…</div><div id="admin-votes-listes" class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3"></div></section>
       <section class="mt-4"><h3 class="font-extrabold text-sm">Gestion des créneaux</h3><div id="admin-creneaux-actions" class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3"></div></section>
@@ -841,6 +844,33 @@
     } catch (error) {
       messageVotes.textContent = 'Impossible de charger les votes : ' + (error.message || error);
       messageStats.textContent = 'Impossible de charger les statistiques : ' + (error.message || error);
+    }
+    await chargerMembresHelloAsso();
+  }
+
+  async function chargerMembresHelloAsso() {
+    const etat = document.getElementById('admin-membres-etat');
+    const liste = document.getElementById('admin-membres-liste');
+    const bouton = document.getElementById('admin-membres-actualiser');
+    if (!etat || !liste) return;
+    if (!profil.admin || !motDePasseAdminEnMemoire) {
+      etat.textContent = 'Reconnecte-toi au mode administrateur pour consulter cette liste.';
+      liste.innerHTML = '';
+      return;
+    }
+    if (bouton) { bouton.disabled = true; bouton.textContent = 'Chargement…'; }
+    etat.textContent = 'Récupération des adhésions payées…';
+    liste.innerHTML = '';
+    try {
+      const resultat = await appelerFonctionAdmin('get_helloasso_members');
+      const membres = Array.isArray(resultat.members) ? resultat.members : [];
+      membres.sort((a,b) => String(a.nom || '').localeCompare(String(b.nom || ''), 'fr', { sensitivity: 'base' }) || String(a.prenom || '').localeCompare(String(b.prenom || ''), 'fr', { sensitivity: 'base' }));
+      etat.textContent = membres.length ? membres.length + (membres.length > 1 ? ' adhérents à jour' : ' adhérent à jour') : 'Aucune adhésion payée trouvée pour ce formulaire.';
+      liste.innerHTML = membres.map(membre => '<div class="rounded-md border border-slate-600 bg-slate-700/70 px-2 py-1.5 text-xs font-semibold">' + echapper([membre.nom, membre.prenom].filter(Boolean).join(' ')) + '</div>').join('');
+    } catch (error) {
+      etat.textContent = 'Liste HelloAsso indisponible : ' + (error.message || error);
+    } finally {
+      if (bouton) { bouton.disabled = false; bouton.textContent = 'Actualiser'; }
     }
   }
 

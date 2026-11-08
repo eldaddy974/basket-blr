@@ -427,7 +427,15 @@
       }
     });
 
-    if (error) throw error;
+    if (error) {
+      let details = null;
+      try {
+        const response = error.context;
+        if (response && typeof response.clone === 'function') details = await response.clone().json();
+      } catch {}
+      if (details?.error) throw new Error(details.error);
+      throw error;
+    }
     if (data?.error) throw new Error(data.error);
     if (data?.authorized === false) throw new Error('Mot de passe administrateur incorrect.');
     return data;

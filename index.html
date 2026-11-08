@@ -31,6 +31,7 @@
   <div id="message-erreur" class="hidden m-4 rounded-xl border border-red-800 bg-red-950 p-4 text-sm font-semibold text-red-200"></div>
 
   <main id="sessions-container" class="max-w-6xl mx-auto grid grid-cols-2 items-start gap-3 p-3"></main>
+  <section id="zone-gestion-admin" class="hidden max-w-6xl mx-auto px-3 mt-1"><button onclick="ouvrirGestionAdmin()" class="w-full rounded-xl border border-slate-600 bg-slate-800 px-4 py-3 text-sm font-extrabold text-slate-100 shadow hover:bg-slate-700">⚙ Gestion admin — toute la semaine</button></section>
 
   <section id="recap-container" class="max-w-6xl mx-auto px-3 mt-3">
     <div class="mb-3 flex flex-wrap items-end justify-between gap-2">
@@ -122,7 +123,7 @@
   </div>
 
   <!-- MODIFIER UNE SESSION -->
-  <div id="modal-edition" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+  <div id="modal-edition" class="hidden fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4">
     <div class="bg-slate-800 text-slate-100 rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-xl">
       <h2 class="font-extrabold text-slate-100 text-lg">Modifier la session</h2>
       <p id="edition-nom-session" class="text-sm text-slate-300"></p>
@@ -150,30 +151,29 @@
     </div>
   </div>
 
-  <!-- STATISTIQUES ADMIN -->
-  <div id="modal-stats-admin" class="hidden fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-3">
-    <div class="bg-slate-800 text-slate-100 rounded-2xl w-full max-w-lg p-5 shadow-xl max-h-[90vh] overflow-y-auto">
-      <div class="flex items-start justify-between gap-3"><div><h2 class="font-extrabold text-lg">Statistiques des votes</h2><p id="stats-admin-session" class="text-sm text-slate-300 mt-1"></p></div><button onclick="fermerStatsAdmin()" class="text-blue-300 font-bold">Fermer</button></div>
-      <p id="stats-admin-message" class="text-xs text-slate-300 mt-4">Chargement des statistiques…</p>
-      <div id="stats-admin-resume" class="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-3"></div>
-      <p class="text-[11px] leading-relaxed text-slate-400 mt-4">L’historique commence avec cette mise à jour. Les votes encore actifs au moment du déploiement sont inclus ; les anciennes opérations déjà supprimées ne peuvent pas être reconstituées.</p>
-      <button id="stats-admin-export" onclick="exporterStatsCSV()" disabled class="w-full mt-4 bg-blue-600 disabled:bg-slate-700 disabled:text-slate-400 text-white font-bold py-3 rounded-xl text-sm">Télécharger le fichier compatible Excel (.csv)</button>
-    </div>
-  </div>
-  <!-- PARTICIPANTS -->
-  <div id="modal-participants" class="hidden fixed inset-0 z-50 bg-black/50 flex flex-col justify-end sm:justify-center p-0 sm:p-4">
-    <div class="bg-slate-800 text-slate-100 rounded-t-2xl sm:rounded-2xl max-h-[85vh] flex flex-col w-full max-w-md mx-auto overflow-hidden">
-      <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-900">
-        <div>
-          <h2 id="participants-titre" class="font-extrabold text-slate-100">Participants</h2>
-          <p class="text-xs text-slate-300">Confirmés et file d’attente</p>
-        </div>
-        <button onclick="fermerParticipants()" class="text-blue-600 font-bold">Fermer</button>
+  <!-- GESTION ADMIN GLOBALE -->
+  <div id="modal-gestion-admin" class="hidden fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-2 sm:p-4">
+    <div class="bg-slate-800 text-slate-100 rounded-2xl w-full max-w-4xl p-4 sm:p-6 shadow-xl max-h-[94vh] overflow-y-auto">
+      <div class="sticky top-0 z-10 -mx-4 -mt-4 mb-4 flex items-center justify-between gap-3 border-b border-slate-700 bg-slate-900 px-4 py-3 sm:-mx-6 sm:-mt-6 sm:px-6">
+        <div><h2 class="font-extrabold text-lg">Gestion admin — toute la semaine</h2><p class="text-xs text-slate-300">Mardi et jeudi</p></div>
+        <button onclick="fermerGestionAdmin()" class="text-blue-300 font-bold">Fermer</button>
       </div>
-      <div id="participants-corps" class="overflow-y-auto p-4 space-y-3"></div>
+      <section class="rounded-xl border border-slate-600 bg-slate-900/60 p-3 sm:p-4">
+        <h3 class="font-extrabold text-sm">Adhérents à jour de cotisation</h3>
+        <p id="admin-membres-etat" class="mt-2 text-xs leading-relaxed text-slate-300">La liste HelloAsso n’est pas encore connectée. La case « adhérent » du profil ne permet pas de vérifier les cotisations.</p>
+        <div id="admin-membres-liste" class="mt-3"></div>
+      </section>
+      <section class="mt-4"><h3 class="font-extrabold text-sm">Votes de la semaine — annulations</h3><div id="admin-votes-etat" class="mt-1 text-xs text-slate-300">Chargement des votes…</div><div id="admin-votes-listes" class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3"></div></section>
+      <section class="mt-4"><h3 class="font-extrabold text-sm">Gestion des créneaux</h3><div id="admin-creneaux-actions" class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3"></div></section>
+      <section class="mt-4 rounded-xl border border-slate-600 bg-slate-900/60 p-3 sm:p-4">
+        <h3 class="font-extrabold text-sm">Statistiques depuis le début de l’historique</h3>
+        <p id="admin-stats-etat" class="mt-1 text-[11px] text-slate-400">Chargement des statistiques…</p>
+        <div id="admin-stats-resume" class="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2"></div>
+        <p class="mt-3 text-[11px] leading-relaxed text-slate-400">Les statistiques couvrent les votes et annulations conservés pour mardi et jeudi. Les opérations effacées avant l’activation de l’historique ne peuvent pas être reconstituées.</p>
+        <button id="admin-stats-export" onclick="exporterStatsCSV()" disabled class="w-full mt-3 bg-blue-600 disabled:bg-slate-700 disabled:text-slate-400 text-white font-bold py-3 rounded-xl text-sm">Exporter toute l’historique pour Excel (.csv)</button>
+      </section>
     </div>
   </div>
-
 <script>
   const SUPABASE_URL = 'https://sgkomdvgocrmsrmcktnn.supabase.co';
   const SUPABASE_ANON_KEY = 'sb_publishable_5MB-vD9ZvTa_gfHsitfOng__XVP5PL5';
@@ -195,7 +195,6 @@
   let sessionInviteId = null;
   let sessionEditionId = null;
   let minuteurOuvertureH24 = null;
-  let statsAdminSession = null;
   let statsAdminData = null;
 
   function echapper(valeur) {
@@ -531,6 +530,8 @@
     return sessions.filter(x => cle(x.debut_date)>=lundi.toISOString().slice(0,10) && cle(x.debut_date)<=vendredi.toISOString().slice(0,10)).sort((a,b)=>new Date(a.debut_date)-new Date(b.debut_date)).slice(0,2);
   }
   function afficherSessions() {
+    const zoneAdmin = document.getElementById('zone-gestion-admin');
+    if (zoneAdmin) zoneAdmin.classList.toggle('hidden', !profil.admin);
     const container = document.getElementById('sessions-container');
     container.innerHTML = '';
     const ancienRecap = document.getElementById('recap-listes');
@@ -638,22 +639,7 @@
           ${avantH24 ? `<p class="text-[11px] text-slate-300 mt-2">Un invité inscrit avant H-24 reste en attente jusqu’à l’ouverture (${echapper(heureOuverture)}).</p>` : ''}
           ${mesInvites.length ? `<div class="space-y-2 mt-3">${invitesHtml}</div>` : ''}` : ''}
 
-                ${profil.admin ? `
-          <div class="border-t border-slate-600 mt-3 pt-3 flex justify-end">
-            <details class="relative">
-              <summary class="cursor-pointer list-none text-[10px] font-semibold text-slate-300 bg-slate-700 border border-slate-600 px-2 py-1 rounded-md">
-                ⚙ Gestion admin
-              </summary>
-              <div class="absolute right-0 bottom-8 z-20 w-48 rounded-lg border border-slate-600 bg-slate-800 p-2 shadow-lg space-y-1">
-                <button onclick="ouvrirStatsAdmin('${echapper(session.id)}')" class="w-full text-left text-[10px] font-semibold text-emerald-200 hover:bg-emerald-950 px-2 py-1.5 rounded">Statistiques / Export Excel</button>
-                <button onclick="ouvrirParticipants('${echapper(session.id)}')" class="w-full text-left text-[10px] font-semibold text-blue-200 hover:bg-blue-900 px-2 py-1.5 rounded">Gérer les votes / annulations</button>
-                <button onclick="ouvrirEdition('${echapper(session.id)}')" class="w-full text-left text-[10px] font-semibold text-blue-300 hover:bg-blue-900 px-2 py-1.5 rounded">Modifier jour / heures</button>
-                ${annulee
-                  ? `<button onclick="basculerAnnulation('${echapper(session.id)}', '${numero}')" class="w-full text-left text-[10px] font-semibold text-emerald-200 hover:bg-emerald-950 px-2 py-1.5 rounded">Relancer la session</button>`
-                  : `<button onclick="basculerAnnulation('${echapper(session.id)}', '${numero}')" class="w-full text-left text-[10px] font-semibold text-red-200 hover:bg-red-950 px-2 py-1.5 rounded">Annuler la session</button>`}
-              </div>
-            </details>
-          </div>` : ''}`;
+      `;
 
       if (estPassee && !annulee) carte.insertAdjacentHTML('beforeend', '<p class="mt-3 text-[11px] text-slate-300">Créneau passé — inscriptions conservées jusqu’à la remise à zéro du vendredi matin.</p>');
       colonne.appendChild(carte);
@@ -810,87 +796,94 @@
         admin_password: profil.admin ? motDePasseAdminEnMemoire : ''
       });
       await rechargerInscriptions();
+      const panneauAdmin = document.getElementById('modal-gestion-admin');
+      if (panneauAdmin && !panneauAdmin.classList.contains('hidden')) await chargerDonneesGestionAdmin();
     } catch (error) {
       alert('Erreur lors de l’annulation : ' + (error.message || error));
     }
   }
 
-  async function ouvrirStatsAdmin(sessionId) {
+  async function ouvrirGestionAdmin() {
     if (!profil.admin || !motDePasseAdminEnMemoire) return alert('Le mode Administrateur a expiré. Rouvre Profil et reconnecte-toi.');
-    const session = sessions.find(item => item.id === sessionId);
-    if (!session) return alert('Session introuvable.');
-    statsAdminSession = session;
-    statsAdminData = null;
-    document.getElementById('stats-admin-session').textContent = libelleSession(session);
-    document.getElementById('stats-admin-message').textContent = 'Chargement des statistiques…';
-    document.getElementById('stats-admin-resume').innerHTML = '';
-    document.getElementById('stats-admin-export').disabled = true;
-    document.getElementById('modal-stats-admin').classList.remove('hidden');
+    document.getElementById('modal-gestion-admin').classList.remove('hidden');
+    afficherActionsCreneauxAdmin();
+    await chargerDonneesGestionAdmin();
+  }
+
+  function fermerGestionAdmin() { document.getElementById('modal-gestion-admin').classList.add('hidden'); }
+
+  function afficherActionsCreneauxAdmin() {
+    const zone = document.getElementById('admin-creneaux-actions');
+    const creneaux = sessionsDuCycle().filter(session => ['session-mardi','session-jeudi'].includes(session.id));
+    zone.innerHTML = creneaux.map(session => {
+      const annulee = session.statut === 'annulee';
+      const boutonModifier = '<button onclick="ouvrirEdition(\'' + echapper(session.id) + '\')" class="flex-1 rounded-lg bg-blue-900 px-2 py-2 text-xs font-bold text-blue-100">Modifier</button>';
+      const boutonStatut = '<button onclick="basculerAnnulation(\'' + echapper(session.id) + '\')" class="flex-1 rounded-lg px-2 py-2 text-xs font-bold ' + (annulee ? 'bg-emerald-900 text-emerald-100' : 'bg-red-900 text-red-100') + '">' + (annulee ? 'Relancer' : 'Annuler') + '</button>';
+      return '<article class="rounded-xl border border-slate-600 bg-slate-700/60 p-3"><h4 class="font-bold text-sm">' + echapper(libelleSession(session)) + '</h4><div class="mt-3 flex gap-2">' + boutonModifier + boutonStatut + '</div></article>';
+    }).join('') || '<p class="text-xs text-slate-400">Aucun créneau cette semaine.</p>';
+  }
+
+  async function chargerDonneesGestionAdmin() {
+    const messageVotes = document.getElementById('admin-votes-etat');
+    const messageStats = document.getElementById('admin-stats-etat');
+    messageVotes.textContent = 'Chargement des votes…';
+    messageStats.textContent = 'Chargement des statistiques…';
+    document.getElementById('admin-stats-export').disabled = true;
     try {
-      const resultat = await appelerFonctionAdmin('get_session_stats', { sessionId });
+      const resultat = await appelerFonctionAdmin('get_all_admin_stats');
       statsAdminData = resultat;
-      const events = resultat.events || [];
-      const votes = events.filter(event => event.type_evenement === 'vote');
-      const annulations = events.filter(event => event.type_evenement === 'annulation');
-      const invitations = votes.filter(event => event.est_invite === true).length;
-      const adherents = votes.filter(event => !event.est_invite && event.est_abonne === true).length;
-      const nonAdherents = votes.filter(event => !event.est_invite && event.est_abonne !== true).length;
-      document.getElementById('stats-admin-message').textContent = 'Historique du créneau récurrent ; les votes actifs actuels sont inclus.';
-      const resume = [['Votes enregistrés', votes.length], ['Votes actuellement actifs', resultat.activeCount || 0], ['Annulations virtuelles', annulations.length], ['Invitations comprises', invitations], ['Votes adhérents', adherents], ['Votes non-adhérents', nonAdherents]];
-      document.getElementById('stats-admin-resume').innerHTML = resume.map(function(item) {
-        return '<div class="rounded-xl border border-slate-600 bg-slate-700/70 p-3"><p class="text-[10px] text-slate-300">' + echapper(item[0]) + '</p><p class="text-xl font-extrabold">' + echapper(item[1]) + '</p></div>';
-      }).join('');
-      document.getElementById('stats-admin-export').disabled = false;
+      inscriptions = resultat.activeVotes || [];
+      afficherVotesAdmin(resultat);
+      afficherResumeStatsAdmin(resultat);
+      messageVotes.textContent = 'Votes confirmés et en attente des créneaux actuels.';
+      messageStats.textContent = 'Historique global mardi + jeudi, toutes les semaines conservées.';
+      document.getElementById('admin-stats-export').disabled = false;
     } catch (error) {
-      document.getElementById('stats-admin-message').textContent = 'Impossible de charger les statistiques : ' + (error.message || error);
+      messageVotes.textContent = 'Impossible de charger les votes : ' + (error.message || error);
+      messageStats.textContent = 'Impossible de charger les statistiques : ' + (error.message || error);
     }
   }
 
-  function fermerStatsAdmin() {
-    document.getElementById('modal-stats-admin').classList.add('hidden');
+  function afficherVotesAdmin(resultat) {
+    const zone = document.getElementById('admin-votes-listes');
+    const creneaux = sessionsDuCycle().filter(session => ['session-mardi','session-jeudi'].includes(session.id));
+    zone.innerHTML = creneaux.map(session => {
+      const inscrits = (resultat.activeVotes || []).filter(vote => vote.session_id === session.id);
+      const confirmes = inscrits.filter(vote => vote.statut === 'confirmed');
+      const attente = inscrits.filter(vote => vote.statut === 'waitlisted').sort((a,b)=>Number(a.date_demande||0)-Number(b.date_demande||0));
+      const ligne = (vote,index,enAttente) => '<div class="flex items-center justify-between gap-2 rounded-lg border ' + (enAttente ? 'border-amber-800 bg-amber-950/50' : 'border-slate-600 bg-slate-700/70') + ' p-2"><div class="min-w-0"><p class="text-xs font-bold">' + (index+1) + '. ' + echapper(vote.prenom) + ' ' + echapper(vote.nom) + (vote.est_invite ? ' <span class="font-normal text-slate-300">(invité par ' + echapper(vote.invite_par_nom || '') + ')</span>' : '') + '</p><p class="text-[10px] text-slate-300">' + (enAttente ? 'En attente' : 'Confirmé') + ' · ' + echapper(formatHorodatage(vote.date_demande)) + '</p></div><button onclick="annulerInscription(\'' + echapper(vote.id) + '\')" class="shrink-0 rounded-lg bg-red-900 px-2 py-1.5 text-[10px] font-bold text-red-100">Annuler</button></div>';
+      const liste = (items,titre,enAttente) => '<section class="mt-2"><h5 class="mb-1 text-[10px] font-extrabold uppercase text-slate-300">' + titre + ' (' + items.length + ')</h5>' + (items.length ? items.map((vote,index)=>ligne(vote,index,enAttente)).join('') : '<p class="text-[10px] italic text-slate-400">Aucun</p>') + '</section>';
+      return '<article class="rounded-xl border border-slate-600 bg-slate-900/60 p-3"><h4 class="font-bold text-sm">' + echapper(libelleSession(session)) + '</h4>' + liste(confirmes,'Confirmés',false) + liste(attente,'Attente',true) + '</article>';
+    }).join('') || '<p class="text-xs text-slate-400">Aucun vote cette semaine.</p>';
+  }
+
+  function afficherResumeStatsAdmin(resultat) {
+    const events = resultat.events || [];
+    const votes = events.filter(event => event.type_evenement === 'vote');
+    const annulations = events.filter(event => event.type_evenement === 'annulation');
+    const count = (sessionId,type) => events.filter(event => event.session_id === sessionId && event.type_evenement === type).length;
+    const resume = [['Votes enregistrés',votes.length],['Votes actifs',resultat.activeCount||0],['Annulations virtuelles',annulations.length],['Invitations',votes.filter(event=>event.est_invite).length],['Mardi · votes',count('session-mardi','vote')],['Mardi · annulations',count('session-mardi','annulation')],['Jeudi · votes',count('session-jeudi','vote')],['Jeudi · annulations',count('session-jeudi','annulation')]];
+    document.getElementById('admin-stats-resume').innerHTML = resume.map(item=>'<div class="rounded-xl border border-slate-600 bg-slate-700/70 p-3"><p class="text-[10px] text-slate-300">'+echapper(item[0])+'</p><p class="text-xl font-extrabold">'+echapper(item[1])+'</p></div>').join('');
   }
 
   function exporterStatsCSV() {
-    if (!statsAdminData || !statsAdminSession) return;
-    const evenementLibelle = value => value === 'annulation' ? 'Annulation virtuelle' : 'Vote';
-    const categorie = event => event.est_invite ? 'Invité' : (event.est_abonne ? 'Adhérent' : 'Non-adhérent');
-    const dateTexte = value => {
-      if (!value) return '';
-      const date = new Date(Number(value) || value);
-      return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('fr-FR', { timeZone: 'Indian/Reunion', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    };
-    const quote = String.fromCharCode(34);
-    const csvCell = value => quote + String(value ?? '').replaceAll(quote, quote + quote) + quote;
+    if (!statsAdminData) return;
     const allEvents = statsAdminData.events || [];
-    const votes = allEvents.filter(event => event.type_evenement === 'vote');
-    const annulations = allEvents.filter(event => event.type_evenement === 'annulation');
-    const resume = [
-      ['Statistiques — ' + libelleSession(statsAdminSession)],
-      ['Votes enregistrés', votes.length],
-      ['Votes actuellement actifs', statsAdminData.activeCount || 0],
-      ['Annulations virtuelles', annulations.length],
-      ['Invitations comprises', votes.filter(event => event.est_invite === true).length],
-      ['Votes adhérents', votes.filter(event => !event.est_invite && event.est_abonne === true).length],
-      ['Votes non-adhérents', votes.filter(event => !event.est_invite && event.est_abonne !== true).length],
-      [],
-      ['Événement', 'Date du créneau', 'Horaires', 'Prénom', 'Nom', 'Catégorie', 'Statut du vote', 'Date de l’action', 'Effectué par', 'Vote actuellement actif', 'Note']
-    ];
-    const rows = resume;
-    const events = [...allEvents].sort((a, b) => new Date(a.created_at || Number(a.date_demande) || 0) - new Date(b.created_at || Number(b.date_demande) || 0));
-    for (const event of events) {
-      rows.push([evenementLibelle(event.type_evenement), dateTexte(event.session_debut_date), event.session_horaires || '', event.prenom || '', event.nom || '', categorie(event), event.statut === 'confirmed' ? 'Confirmé' : (event.statut === 'waitlisted' ? 'En attente' : ''), dateTexte(event.created_at || event.date_demande), event.acteur || '', event.type_evenement === 'vote' ? (event.actif ? 'Oui' : 'Non') : '', event.ancien_enregistrement ? 'Vote actif préexistant ; ancien historique indisponible' : '']);
-    }
-    const contenu = '\uFEFF' + rows.map(row => row.map(csvCell).join(';')).join('\r\n');
-    const blob = new Blob([contenu], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const lien = document.createElement('a');
-    const jour = new Date().toLocaleDateString('sv-SE', { timeZone: 'Indian/Reunion' });
-    lien.href = url;
-    lien.download = 'stats-' + statsAdminSession.id + '-' + jour + '.csv';
-    document.body.appendChild(lien);
-    lien.click();
-    lien.remove();
-    URL.revokeObjectURL(url);
+    const votes = allEvents.filter(event=>event.type_evenement==='vote');
+    const annulations = allEvents.filter(event=>event.type_evenement==='annulation');
+    const count = (sessionId,type) => allEvents.filter(event=>event.session_id===sessionId&&event.type_evenement===type).length;
+    const quote = String.fromCharCode(34);
+    const csvCell = value => quote + String(value ?? '').replaceAll(quote,quote+quote) + quote;
+    const rows = [['Statistiques BLR — historique conservé'],['Votes enregistrés',votes.length],['Votes actifs',statsAdminData.activeCount||0],['Annulations virtuelles',annulations.length],['Mardi · votes',count('session-mardi','vote')],['Mardi · annulations',count('session-mardi','annulation')],['Jeudi · votes',count('session-jeudi','vote')],['Jeudi · annulations',count('session-jeudi','annulation')],[],['Événement','Date du créneau','Horaires','Jour','Prénom','Nom','Catégorie','Statut du vote','Date de l’action','Effectué par','Vote actif','Note']];
+    const dateTexte = value => { if(!value)return ''; const date=new Date(Number(value)||value); return Number.isNaN(date.getTime())?'':date.toLocaleString('fr-FR',{timeZone:'Indian/Reunion',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}); };
+    const categorie = event => event.est_invite?'Invité':(event.est_abonne?'Adhérent':'Non-adhérent');
+    const liste=[...allEvents].sort((a,b)=>new Date(a.created_at||Number(a.date_demande)||0)-new Date(b.created_at||Number(b.date_demande)||0));
+    for (const event of liste) rows.push([event.type_evenement==='annulation'?'Annulation virtuelle':'Vote',dateTexte(event.session_debut_date),event.session_horaires||'',event.session_nom||event.session_id||'',event.prenom||'',event.nom||'',categorie(event),event.statut==='confirmed'?'Confirmé':(event.statut==='waitlisted'?'En attente':''),dateTexte(event.created_at||event.date_demande),event.acteur||'',event.type_evenement==='vote'?(event.actif?'Oui':'Non'):'',event.ancien_enregistrement?'Vote actif préexistant; ancien historique indisponible':'']);
+    const contenu='\uFEFF'+rows.map(row=>row.map(csvCell).join(';')).join('\r\n');
+    const blob=new Blob([contenu],{type:'text/csv;charset=utf-8'});
+    const url=URL.createObjectURL(blob);
+    const lien=document.createElement('a'); lien.href=url; lien.download='stats-blr-toutes-semaines-'+new Date().toLocaleDateString('sv-SE',{timeZone:'Indian/Reunion'})+'.csv';
+    document.body.appendChild(lien); lien.click(); lien.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000);
   }
   function ouvrirEdition(sessionId) {
     if (!profil.admin) return alert('Active le mode Administrateur dans Profil.');
@@ -952,6 +945,8 @@
       });
       fermerEdition();
       await rechargerTout();
+      const panneauAdmin = document.getElementById('modal-gestion-admin');
+      if (panneauAdmin && !panneauAdmin.classList.contains('hidden')) { afficherActionsCreneauxAdmin(); await chargerDonneesGestionAdmin(); }
       alert('La date et les horaires de la session ont été modifiés.');
     } catch (error) {
       alert('Modification impossible : ' + (error.message || error));
@@ -985,55 +980,17 @@
         statut: annuler ? 'annulee' : 'ouvert'
       });
       await rechargerTout();
+      const panneauAdmin = document.getElementById('modal-gestion-admin');
+      if (panneauAdmin && !panneauAdmin.classList.contains('hidden')) {
+        afficherActionsCreneauxAdmin();
+        await chargerDonneesGestionAdmin();
+      }
       alert(annuler
         ? 'Session annulée. Les inscriptions sont conservées.'
         : 'Session relancée. Les inscriptions sont conservées.');
     } catch (error) {
       alert('Action impossible : ' + (error.message || error));
     }
-  }
-
-  function ouvrirParticipants(sessionId) {
-    const session = sessions.find(s => s.id === sessionId);
-    const inscrits = inscritsPour(sessionId);
-    const confirmes = inscrits.filter(i => i.statut === 'confirmed');
-    const attente = inscrits
-      .filter(i => i.statut === 'waitlisted')
-      .sort((a, b) => Number(a.date_demande || 0) - Number(b.date_demande || 0));
-
-    document.getElementById('participants-titre').textContent = session ? libelleSession(session) : 'Participants';
-
-    function ligne(i, index, confirme) {
-      const estMonVote = !i.est_invite && memeNom(i.prenom, i.nom, profil.prenom, profil.nom);
-      const estMonInvite = i.est_invite && nomParrainCorrespond(i);
-      const peutAnnuler = profil.admin || estMonVote || estMonInvite;
-
-      return `
-        <div class="flex justify-between items-center gap-2 text-xs text-slate-100 p-3 ${
-          confirme ? 'bg-slate-700 border-slate-700' : 'bg-amber-950 border-amber-800'
-        } rounded-xl border">
-          <div>
-            <b>${confirme ? index + 1 : '#' + (index + 1)}. ${echapper(i.prenom)} ${echapper(i.nom)}</b>
-            ${i.est_invite ? `<span class="text-slate-300">(invité par ${echapper(i.invite_par_nom || '')})</span>` : ''}
-            <p class="text-[10px] text-slate-300 mt-1">🕒 ${echapper(formatHorodatage(i.date_demande))}</p>
-          </div>
-          ${peutAnnuler ? `
-            <button onclick="annulerInscription('${echapper(i.id)}')"
-              class="shrink-0 text-red-300 font-bold bg-red-900 px-2 py-1 rounded-lg">Annuler</button>` : ''}
-        </div>`;
-    }
-
-    document.getElementById('participants-corps').innerHTML = `
-      <h3 class="font-extrabold text-xs uppercase text-slate-200">Confirmés (${confirmes.length})</h3>
-      ${confirmes.length ? confirmes.map((i, n) => ligne(i, n, true)).join('') : '<p class="text-xs text-slate-400">Aucun joueur confirmé.</p>'}
-      <h3 class="font-extrabold text-xs uppercase text-slate-200 mt-4">File d’attente (${attente.length})</h3>
-      ${attente.length ? attente.map((i, n) => ligne(i, n, false)).join('') : '<p class="text-xs text-slate-400">File d’attente vide.</p>'}`;
-
-    document.getElementById('modal-participants').classList.remove('hidden');
-  }
-
-  function fermerParticipants() {
-    document.getElementById('modal-participants').classList.add('hidden');
   }
 
   demarrer();

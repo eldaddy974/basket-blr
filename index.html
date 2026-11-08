@@ -45,27 +45,9 @@
   </section>
 
   <!-- PROFIL -->
-  <div id="modal-profil" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-    <div class="bg-slate-800 text-slate-100 rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-xl max-h-[90vh] overflow-y-auto">
+  <div id="modal-profil" class="hidden fixed inset-0 z-50 bg-black/50 flex items-start sm:items-center justify-center p-2 sm:p-4">
+    <div class="bg-slate-800 text-slate-100 rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-xl max-h-[calc(100dvh-1rem)] sm:max-h-[90vh] overflow-y-auto">
       <h2 class="font-extrabold text-slate-100 text-lg">Mon profil</h2>
-
-      <label class="block text-xs font-bold text-slate-200">
-        Prénom
-        <input id="profil-prenom" type="text" class="w-full mt-1 border border-slate-600 bg-slate-900 text-slate-100 rounded-lg p-2.5 text-sm">
-      </label>
-
-      <label class="block text-xs font-bold text-slate-200">
-        Nom
-        <input id="profil-nom" type="text" class="w-full mt-1 border border-slate-600 bg-slate-900 text-slate-100 rounded-lg p-2.5 text-sm">
-      </label>
-
-      <label class="flex items-center justify-between gap-3 p-3 bg-emerald-950 border border-emerald-800 rounded-xl">
-        <span>
-          <span class="block text-sm font-bold text-emerald-100">Adhérent à jour de cotisation</span>
-          <span class="block text-xs text-emerald-300">Prioritaire dès son vote</span>
-        </span>
-        <input id="profil-abonne" type="checkbox" class="w-5 h-5 accent-emerald-600">
-      </label>
 
       <div class="border-t border-slate-700 pt-3">
         <label class="flex items-center justify-between gap-3">
@@ -88,6 +70,25 @@
           </div>
         </div>
       </div>
+
+      <label class="block text-xs font-bold text-slate-200">
+        Prénom
+        <input id="profil-prenom" type="text" class="w-full mt-1 border border-slate-600 bg-slate-900 text-slate-100 rounded-lg p-2.5 text-sm">
+      </label>
+
+      <label class="block text-xs font-bold text-slate-200">
+        Nom
+        <input id="profil-nom" type="text" class="w-full mt-1 border border-slate-600 bg-slate-900 text-slate-100 rounded-lg p-2.5 text-sm">
+      </label>
+
+      <label class="flex items-center justify-between gap-3 p-3 bg-emerald-950 border border-emerald-800 rounded-xl">
+        <span>
+          <span class="block text-sm font-bold text-emerald-100">Adhérent à jour de cotisation</span>
+          <span class="block text-xs text-emerald-300">Prioritaire dès son vote</span>
+        </span>
+        <input id="profil-abonne" type="checkbox" class="w-5 h-5 accent-emerald-600">
+      </label>
+
 
       <p id="profil-message" class="hidden text-xs font-semibold rounded-lg p-2"></p>
 

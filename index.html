@@ -914,12 +914,38 @@
     );
   }
 
+  function apercuStatsVotesActuels(resultat) {
+    const dateLocale = valeur => {
+      if (!valeur) return '';
+      const date = new Date(valeur);
+      if (Number.isNaN(date.getTime())) return '';
+      const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Indian/Mauritius', year: 'numeric', month: '2-digit', day: '2-digit'
+      }).formatToParts(date).map(part => [part.type, part.value]));
+      return p.year + '-' + p.month + '-' + p.day;
+    };
+    const datesSessions = new Map((resultat.sessions || []).map(session => [session.id, dateLocale(session.debut_date)]));
+    const lignes = [];
+    for (const vote of resultat.activeVotes || []) {
+      if (vote.statut !== 'confirmed' || !['session-mardi','session-jeudi'].includes(vote.session_id)) continue;
+      lignes.push({ session_id: vote.session_id, nom: vote.nom, prenom: vote.prenom, votes_confirmes: 1, annulations: 0 });
+    }
+    for (const event of resultat.events || []) {
+      if (event.type_evenement !== 'annulation' || !datesSessions.has(event.session_id)) continue;
+      const dateSessionActuelle = datesSessions.get(event.session_id);
+      if (!dateSessionActuelle || dateLocale(event.session_debut_date) !== dateSessionActuelle) continue;
+      lignes.push({ session_id: event.session_id, nom: event.nom, prenom: event.prenom, votes_confirmes: 0, annulations: 1 });
+    }
+    return lignes;
+  }
+
   function afficherStatsSaisonAdmin(resultat) {
     const zone = document.getElementById('admin-stats-joueurs');
     if (!zone) return;
-    const joueurs = calculerStatsSaisonJoueurs(resultat.seasonPlayerStats || []);
+    const releveOfficiel = Array.isArray(resultat.seasonPlayerStats) && resultat.seasonPlayerStats.length > 0;
+    const joueurs = calculerStatsSaisonJoueurs(releveOfficiel ? resultat.seasonPlayerStats : apercuStatsVotesActuels(resultat));
     if (!joueurs.length) {
-      zone.innerHTML = '<p class="rounded-lg border border-slate-700 bg-slate-800/70 p-3 text-xs text-slate-300">Aucun relevé de la saison pour le moment. Le premier sera enregistré jeudi à 23 h, avant la remise à zéro.</p>';
+      zone.innerHTML = '<p class="rounded-lg border border-slate-700 bg-slate-800/70 p-3 text-xs text-slate-300">Aucun vote confirmé dans les créneaux actuels. Le premier relevé officiel sera enregistré jeudi à 23 h.</p>';
       return;
     }
     const total = joueur => ({
@@ -938,7 +964,9 @@
         '<td class="px-2 py-2 text-center font-bold text-amber-200">' + cumule.annulations + '</td>' +
       '</tr>';
     }).join('');
-    zone.innerHTML =
+    const etiquetteTest = releveOfficiel ? '' :
+      '<p class="mb-2 rounded-lg border border-amber-700 bg-amber-950/60 p-2 text-[11px] font-semibold text-amber-200">APERÇU TEST · votes confirmés actuellement inscrits. Ce tableau temporaire n’est pas enregistré dans le cumul saisonnier.</p>';
+    zone.innerHTML = etiquetteTest +
       '<div class="overflow-x-auto rounded-lg border border-slate-700" style="-webkit-overflow-scrolling:touch">' +
         '<table class="min-w-[600px] w-full text-[10px] text-slate-200">' +
           '<thead>' +

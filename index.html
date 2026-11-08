@@ -638,35 +638,22 @@
           ${avantH24 ? `<p class="text-[11px] text-slate-300 mt-2">Un invité inscrit avant H-24 reste en attente jusqu’à l’ouverture (${echapper(heureOuverture)}).</p>` : ''}
           ${mesInvites.length ? `<div class="space-y-2 mt-3">${invitesHtml}</div>` : ''}` : ''}
 
-        <div class="border-t border-slate-600 mt-3 pt-3 flex flex-wrap justify-between items-center gap-2">
-          <button onclick="ouvrirParticipants('${echapper(session.id)}')"
-            class="text-xs font-bold text-blue-300">
-            👥 Voir les inscrits (${confirmes.length} confirmés / ${attente.length} en attente)
-          </button>
-
-          ${profil.admin ? `
+                ${profil.admin ? `
+          <div class="border-t border-slate-600 mt-3 pt-3 flex justify-end">
             <details class="relative">
               <summary class="cursor-pointer list-none text-[10px] font-semibold text-slate-300 bg-slate-700 border border-slate-600 px-2 py-1 rounded-md">
                 ⚙ Gestion admin
               </summary>
               <div class="absolute right-0 bottom-8 z-20 w-48 rounded-lg border border-slate-600 bg-slate-800 p-2 shadow-lg space-y-1">
                 <button onclick="ouvrirStatsAdmin('${echapper(session.id)}')" class="w-full text-left text-[10px] font-semibold text-emerald-200 hover:bg-emerald-950 px-2 py-1.5 rounded">Statistiques / Export Excel</button>
-                <button onclick="ouvrirEdition('${echapper(session.id)}')"
-                  class="w-full text-left text-[10px] font-semibold text-blue-300 hover:bg-blue-900 px-2 py-1.5 rounded">
-                  Modifier jour / heures
-                </button>
+                <button onclick="ouvrirParticipants('${echapper(session.id)}')" class="w-full text-left text-[10px] font-semibold text-blue-200 hover:bg-blue-900 px-2 py-1.5 rounded">Gérer les votes / annulations</button>
+                <button onclick="ouvrirEdition('${echapper(session.id)}')" class="w-full text-left text-[10px] font-semibold text-blue-300 hover:bg-blue-900 px-2 py-1.5 rounded">Modifier jour / heures</button>
                 ${annulee
-                  ? `<button onclick="basculerAnnulation('${echapper(session.id)}', '${numero}')"
-                       class="w-full text-left text-[10px] font-semibold text-emerald-200 hover:bg-emerald-950 px-2 py-1.5 rounded">
-                       Relancer la session
-                     </button>`
-                  : `<button onclick="basculerAnnulation('${echapper(session.id)}', '${numero}')"
-                       class="w-full text-left text-[10px] font-semibold text-red-200 hover:bg-red-950 px-2 py-1.5 rounded">
-                       Annuler la session
-                     </button>`}
+                  ? `<button onclick="basculerAnnulation('${echapper(session.id)}', '${numero}')" class="w-full text-left text-[10px] font-semibold text-emerald-200 hover:bg-emerald-950 px-2 py-1.5 rounded">Relancer la session</button>`
+                  : `<button onclick="basculerAnnulation('${echapper(session.id)}', '${numero}')" class="w-full text-left text-[10px] font-semibold text-red-200 hover:bg-red-950 px-2 py-1.5 rounded">Annuler la session</button>`}
               </div>
-            </details>` : ''}
-        </div>`;
+            </details>
+          </div>` : ''}`;
 
       if (estPassee && !annulee) carte.insertAdjacentHTML('beforeend', '<p class="mt-3 text-[11px] text-slate-300">Créneau passé — inscriptions conservées jusqu’à la remise à zéro du vendredi matin.</p>');
       colonne.appendChild(carte);

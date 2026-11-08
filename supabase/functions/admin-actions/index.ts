@@ -46,16 +46,30 @@ async function demanderJetonHelloAsso(clientId: string, clientSecret: string, re
 
   const response = await fetch("https://api.helloasso.com/oauth2/token", {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Accept": "application/json",
+      "User-Agent": "BasketBLR-Reservations/1.0",
+    },
     body: formulaire.toString(),
   });
-  const resultat = await response.json().catch(() => ({}));
+  const corps = await response.text().catch(() => "");
+  let resultat: Record<string, unknown> = {};
+  try { resultat = JSON.parse(corps); } catch {}
   if (!response.ok || typeof resultat.access_token !== "string" || typeof resultat.refresh_token !== "string") {
     const code = typeof resultat.error === "string" ? resultat.error : "";
     const message = typeof resultat.message === "string" ? resultat.message.replace(/[\\r\\n\\t]/g, " ").slice(0, 140) : "";
     const contentType = response.headers.get("content-type") || "type de réponse inconnu";
-    const detail = code || message || contentType;
-    throw new Error("Authentification HelloAsso refusée (HTTP " + response.status + (detail ? ", " + detail : "") + "). Vérifie la clé API HelloAsso et les droits de l’association.");
+    const titreHtml = corps.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i)?.[1]?.replace(/<[^>]*>/g, " ").replace(/\\s+/g, " ").trim().slice(0, 100) || "";
+    console.error("Refus OAuth HelloAsso", JSON.stringify({
+      status: response.status,
+      contentType,
+      server: response.headers.get("server"),
+      cfRay: response.headers.get("cf-ray"),
+      htmlTitle: titreHtml || null,
+    }));
+    const detail = code || message || (titreHtml ? contentType + ", " + titreHtml : contentType);
+    throw new Error("Authentification HelloAsso refusée (HTTP " + response.status + ", " + detail + "). Vérifie la clé API HelloAsso et les droits de l’association.");
   }
   return resultat;
 }
@@ -83,7 +97,11 @@ async function obtenirJetonHelloAsso(supabaseAdmin: ReturnType<typeof createClie
     form.set("refresh_token", etat.refresh_token);
     let response = await fetch("https://api.helloasso.com/oauth2/token", {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json",
+        "User-Agent": "BasketBLR-Reservations/1.0",
+      },
       body: form.toString(),
     });
     let resultat = await response.json().catch(() => ({}));

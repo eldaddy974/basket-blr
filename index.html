@@ -874,8 +874,22 @@
     };
     const quote = String.fromCharCode(34);
     const csvCell = value => quote + String(value ?? '').replaceAll(quote, quote + quote) + quote;
-    const rows = [['Événement', 'Date du créneau', 'Horaires', 'Prénom', 'Nom', 'Catégorie', 'Statut du vote', 'Date de l’action', 'Effectué par', 'Vote actuellement actif', 'Note']];
-    const events = [...(statsAdminData.events || [])].sort((a, b) => new Date(a.created_at || Number(a.date_demande) || 0) - new Date(b.created_at || Number(b.date_demande) || 0));
+    const allEvents = statsAdminData.events || [];
+    const votes = allEvents.filter(event => event.type_evenement === 'vote');
+    const annulations = allEvents.filter(event => event.type_evenement === 'annulation');
+    const resume = [
+      ['Statistiques — ' + libelleSession(statsAdminSession)],
+      ['Votes enregistrés', votes.length],
+      ['Votes actuellement actifs', statsAdminData.activeCount || 0],
+      ['Annulations virtuelles', annulations.length],
+      ['Invitations comprises', votes.filter(event => event.est_invite === true).length],
+      ['Votes adhérents', votes.filter(event => !event.est_invite && event.est_abonne === true).length],
+      ['Votes non-adhérents', votes.filter(event => !event.est_invite && event.est_abonne !== true).length],
+      [],
+      ['Événement', 'Date du créneau', 'Horaires', 'Prénom', 'Nom', 'Catégorie', 'Statut du vote', 'Date de l’action', 'Effectué par', 'Vote actuellement actif', 'Note']
+    ];
+    const rows = resume;
+    const events = [...allEvents].sort((a, b) => new Date(a.created_at || Number(a.date_demande) || 0) - new Date(b.created_at || Number(b.date_demande) || 0));
     for (const event of events) {
       rows.push([evenementLibelle(event.type_evenement), dateTexte(event.session_debut_date), event.session_horaires || '', event.prenom || '', event.nom || '', categorie(event), event.statut === 'confirmed' ? 'Confirmé' : (event.statut === 'waitlisted' ? 'En attente' : ''), dateTexte(event.created_at || event.date_demande), event.acteur || '', event.type_evenement === 'vote' ? (event.actif ? 'Oui' : 'Non') : '', event.ancien_enregistrement ? 'Vote actif préexistant ; ancien historique indisponible' : '']);
     }

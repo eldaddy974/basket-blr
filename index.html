@@ -927,8 +927,8 @@
     const datesSessions = new Map((resultat.sessions || []).map(session => [session.id, dateLocale(session.debut_date)]));
     const lignes = [];
     for (const vote of resultat.activeVotes || []) {
-      if (vote.statut !== 'confirmed' || !['session-mardi','session-jeudi'].includes(vote.session_id)) continue;
-      lignes.push({ session_id: vote.session_id, nom: vote.nom, prenom: vote.prenom, votes_confirmes: 1, annulations: 0 });
+      if (!['confirmed','waitlisted'].includes(vote.statut) || !['session-mardi','session-jeudi'].includes(vote.session_id)) continue;
+      lignes.push({ session_id: vote.session_id, nom: vote.nom, prenom: vote.prenom, votes_confirmes: vote.statut === 'confirmed' ? 1 : 0, annulations: 0 });
     }
     for (const event of resultat.events || []) {
       if (event.type_evenement !== 'annulation' || !datesSessions.has(event.session_id)) continue;
@@ -965,7 +965,7 @@
       '</tr>';
     }).join('');
     const etiquetteTest = releveOfficiel ? '' :
-      '<p class="mb-2 rounded-lg border border-amber-700 bg-amber-950/60 p-2 text-[11px] font-semibold text-amber-200">APERÇU TEST · votes confirmés actuellement inscrits. Ce tableau temporaire n’est pas enregistré dans le cumul saisonnier.</p>';
+      '<p class="mb-2 rounded-lg border border-amber-700 bg-amber-950/60 p-2 text-[11px] font-semibold text-amber-200">APERÇU TEST · joueurs actuellement inscrits; seuls les votes confirmés sont comptés. Ce tableau temporaire n’est pas enregistré dans le cumul saisonnier.</p>';
     zone.innerHTML = etiquetteTest +
       '<div class="overflow-x-auto rounded-lg border border-slate-700" style="-webkit-overflow-scrolling:touch">' +
         '<table class="min-w-[600px] w-full text-[10px] text-slate-200">' +

@@ -59,14 +59,10 @@
           <label for="profil-mot-de-passe" class="block text-xs font-bold text-slate-200">
             Mot de passe Administrateur
           </label>
-          <div class="flex mt-1">
-            <input id="profil-mot-de-passe" type="password" autocomplete="current-password"
+          <div class="mt-1">
+            <input id="profil-mot-de-passe" type="text" autocomplete="off"
               placeholder="Entrez le mot de passe"
-              class="min-w-0 flex-1 border border-amber-800 bg-amber-950 text-amber-100 rounded-l-lg p-2.5 text-sm">
-            <button type="button" onclick="basculerVisibiliteMotDePasse()"
-              class="border border-l-0 border-amber-800 bg-amber-900 px-3 rounded-r-lg text-xs font-bold text-amber-100">
-              Afficher
-            </button>
+              class="w-full border border-amber-800 bg-amber-950 text-amber-100 rounded-lg p-2.5 text-sm">
           </div>
         </div>
       </div>
@@ -407,14 +403,6 @@
   function afficherZoneMotDePasse() {
     const afficher = document.getElementById('profil-admin').checked && !profil.admin;
     document.getElementById('zone-mot-de-passe').classList.toggle('hidden', !afficher);
-  }
-
-  function basculerVisibiliteMotDePasse() {
-    const input = document.getElementById('profil-mot-de-passe');
-    const bouton = input.parentElement.querySelector('button');
-    const visible = input.type === 'password';
-    input.type = visible ? 'text' : 'password';
-    bouton.textContent = visible ? 'Masquer' : 'Afficher';
   }
 
   function afficherMessageProfil(texte, erreur = false) {

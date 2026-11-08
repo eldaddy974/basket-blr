@@ -8,6 +8,7 @@
   <meta name="theme-color" content="#131330">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 </head>
 
 <body class="font-sans antialiased pb-10" style="background-color:#131330">
@@ -168,10 +169,13 @@
       <section class="mt-4 rounded-xl border border-slate-600 bg-slate-900/60 p-3 sm:p-4">
         <h3 class="font-extrabold text-sm">Statistiques de la saison</h3>
         <p id="admin-stats-etat" class="mt-1 text-[11px] text-slate-400">Chargement des statistiques…</p>
-        <div id="admin-stats-joueurs" class="mt-3"></div>
-        <p class="mt-3 text-[11px] leading-relaxed text-slate-400">Le relevé est figé chaque jeudi à 23 h (heure de La Réunion), avant la remise à zéro du vendredi à 6 h. Le cumul saisonnier commence au premier relevé automatique; les anciennes confirmations ne peuvent pas être reconstituées de façon fiable. Les invités sont comptés sous le nom renseigné.</p>
-        <button id="admin-stats-export" onclick="exporterStatsCSV()" disabled class="w-full mt-3 bg-blue-600 disabled:bg-slate-700 disabled:text-slate-400 text-white font-bold py-3 rounded-xl text-sm">Télécharger pour Google Sheets (.csv)</button>
-        <p class="mt-1 text-[10px] text-slate-400">Format compact pour téléphone : chaque cellule indique « confirmés / annulations ». Dans Sheets : Fichier → Importer.</p>
+        <h4 class="mt-3 font-bold text-xs">Bilan global par créneau</h4>
+        <div id="admin-stats-global" class="mt-2 space-y-2"></div>
+        <h4 class="mt-4 font-bold text-xs">Bilan par joueur · ordre alphabétique</h4>
+        <div id="admin-stats-joueurs" class="mt-2"></div>
+        <p class="mt-3 text-[11px] leading-relaxed text-slate-400">Le relevé est figé chaque jeudi à 23 h (heure de La Réunion), avant la remise à zéro du vendredi à 6 h. Les chiffres sont des réservations confirmées, pas un pointage de présence. Le cumul commence au premier relevé automatique; les anciennes confirmations ne sont pas reconstituables. Les invités sont comptés sous le nom renseigné.</p>
+        <button id="admin-stats-export" onclick="exporterStatsXLSX()" disabled class="w-full mt-3 bg-blue-600 disabled:bg-slate-700 disabled:text-slate-400 text-white font-bold py-3 rounded-xl text-sm">Télécharger le classeur pour Google Sheets (.xlsx)</button>
+        <p class="mt-1 text-[10px] text-slate-400">Deux onglets : Créneaux (totaux et moyennes) et Joueurs. Compatible avec l’application Google Sheets.</p>
       </section>
     </div>
   </div>
@@ -940,13 +944,74 @@
     return lignes;
   }
 
+  function calculerStatsGlobalesSaison(resultat) {
+    const officiel = Array.isArray(resultat.seasonSessionStats) && resultat.seasonSessionStats.length > 0;
+    const stats = {
+      mardi: { seances: 0, confirmes: 0, annulations: 0 },
+      jeudi: { seances: 0, confirmes: 0, annulations: 0 }
+    };
+    if (officiel) {
+      for (const ligne of resultat.seasonSessionStats) {
+        const jour = ligne.session_id === 'session-mardi' ? 'mardi' : ligne.session_id === 'session-jeudi' ? 'jeudi' : null;
+        if (!jour) continue;
+        stats[jour].seances += 1;
+        stats[jour].confirmes += Number(ligne.joueurs_confirmes) || 0;
+        stats[jour].annulations += Number(ligne.annulations) || 0;
+      }
+    } else {
+      for (const session of resultat.sessions || []) {
+        const jour = session.id === 'session-mardi' ? 'mardi' : session.id === 'session-jeudi' ? 'jeudi' : null;
+        if (jour) stats[jour].seances = 1;
+      }
+      for (const ligne of apercuStatsVotesActuels(resultat)) {
+        const jour = ligne.session_id === 'session-mardi' ? 'mardi' : ligne.session_id === 'session-jeudi' ? 'jeudi' : null;
+        if (!jour) continue;
+        stats[jour].confirmes += Number(ligne.votes_confirmes) || 0;
+        stats[jour].annulations += Number(ligne.annulations) || 0;
+      }
+    }
+    const total = {
+      seances: stats.mardi.seances + stats.jeudi.seances,
+      confirmes: stats.mardi.confirmes + stats.jeudi.confirmes,
+      annulations: stats.mardi.annulations + stats.jeudi.annulations
+    };
+    return {
+      officiel,
+      mardi: { ...stats.mardi, moyConfirmes: stats.mardi.seances ? stats.mardi.confirmes / stats.mardi.seances : 0, moyAnnulations: stats.mardi.seances ? stats.mardi.annulations / stats.mardi.seances : 0 },
+      jeudi: { ...stats.jeudi, moyConfirmes: stats.jeudi.seances ? stats.jeudi.confirmes / stats.jeudi.seances : 0, moyAnnulations: stats.jeudi.seances ? stats.jeudi.annulations / stats.jeudi.seances : 0 },
+      total: { ...total, moyConfirmes: total.seances ? total.confirmes / total.seances : 0, moyAnnulations: total.seances ? total.annulations / total.seances : 0 }
+    };
+  }
+
   function afficherStatsSaisonAdmin(resultat) {
-    const zone = document.getElementById('admin-stats-joueurs');
-    if (!zone) return;
+    const zoneGlobal = document.getElementById('admin-stats-global');
+    const zoneJoueurs = document.getElementById('admin-stats-joueurs');
+    const global = calculerStatsGlobalesSaison(resultat);
+    const formatMoyenne = valeur => Number(valeur || 0).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    if (zoneGlobal) {
+      const blocs = [
+        ['Mardi', global.mardi, 'border-blue-700'],
+        ['Jeudi', global.jeudi, 'border-orange-700'],
+        ['Total saison', global.total, 'border-emerald-700']
+      ];
+      const avertissement = global.officiel ? '' : '<p class="mb-2 rounded-lg border border-amber-700 bg-amber-950/60 p-2 text-[11px] font-semibold text-amber-200">APERÇU TEST · créneaux actuels seulement; non inclus au cumul de saison.</p>';
+      zoneGlobal.innerHTML = avertissement + blocs.map(([titre, stats, bordure]) =>
+        '<article class="rounded-lg border ' + bordure + ' bg-slate-800/70 p-2">' +
+          '<h5 class="text-xs font-bold text-slate-100">' + titre + ' <span class="font-normal text-slate-400">(' + stats.seances + ' créneau' + (stats.seances === 1 ? '' : 'x') + ' relevé' + (stats.seances === 1 ? '' : 's') + ')</span></h5>' +
+          '<div class="mt-1 grid grid-cols-2 gap-x-2 gap-y-1 text-[10px] leading-tight">' +
+            '<p><span class="text-slate-400">Confirmés cumulés</span><br><b class="text-emerald-200">' + stats.confirmes + '</b></p>' +
+            '<p><span class="text-slate-400">Annulations cumulées</span><br><b class="text-amber-200">' + stats.annulations + '</b></p>' +
+            '<p><span class="text-slate-400">Moy. confirmés / créneau</span><br><b>' + formatMoyenne(stats.moyConfirmes) + '</b></p>' +
+            '<p><span class="text-slate-400">Moy. annulations / créneau</span><br><b>' + formatMoyenne(stats.moyAnnulations) + '</b></p>' +
+          '</div>' +
+        '</article>'
+      ).join('');
+    }
+    if (!zoneJoueurs) return;
     const releveOfficiel = Array.isArray(resultat.seasonPlayerStats) && resultat.seasonPlayerStats.length > 0;
     const joueurs = calculerStatsSaisonJoueurs(releveOfficiel ? resultat.seasonPlayerStats : apercuStatsVotesActuels(resultat));
     if (!joueurs.length) {
-      zone.innerHTML = '<p class="rounded-lg border border-slate-700 bg-slate-800/70 p-3 text-xs text-slate-300">Aucun vote confirmé dans les créneaux actuels. Le premier relevé officiel sera enregistré jeudi à 23 h.</p>';
+      zoneJoueurs.innerHTML = '<p class="rounded-lg border border-slate-700 bg-slate-800/70 p-3 text-xs text-slate-300">Aucun joueur inscrit dans les créneaux actuels. Le premier relevé officiel sera enregistré jeudi à 23 h.</p>';
       return;
     }
     const total = joueur => ({
@@ -965,9 +1030,8 @@
         '<td class="px-2 py-2 text-center font-bold text-amber-200">' + cumule.annulations + '</td>' +
       '</tr>';
     }).join('');
-    const etiquetteTest = releveOfficiel ? '' :
-      '<p class="mb-2 rounded-lg border border-amber-700 bg-amber-950/60 p-2 text-[11px] font-semibold text-amber-200">APERÇU TEST · joueurs actuellement inscrits; seuls les votes confirmés sont comptés. Ce tableau temporaire n’est pas enregistré dans le cumul saisonnier.</p>';
-    zone.innerHTML = etiquetteTest +
+    const avertissementJoueurs = releveOfficiel ? '' : '<p class="mb-2 rounded-lg border border-amber-700 bg-amber-950/60 p-2 text-[11px] font-semibold text-amber-200">APERÇU TEST · joueurs actuellement inscrits; seuls les votes confirmés sont comptés. Non ajouté au cumul saisonnier.</p>';
+    zoneJoueurs.innerHTML = avertissementJoueurs +
       '<div class="overflow-x-auto rounded-lg border border-slate-700" style="-webkit-overflow-scrolling:touch">' +
         '<table class="min-w-[600px] w-full text-[10px] text-slate-200">' +
           '<thead>' +
@@ -988,30 +1052,48 @@
       '</div>';
   }
 
-  function exporterStatsCSV() {
+  function exporterStatsXLSX() {
     if (!statsAdminData) return;
-    const releveOfficiel = Array.isArray(statsAdminData.seasonPlayerStats) && statsAdminData.seasonPlayerStats.length > 0;
-    const lignesStats = releveOfficiel
-      ? statsAdminData.seasonPlayerStats
-      : apercuStatsVotesActuels(statsAdminData);
-    const joueurStats = calculerStatsSaisonJoueurs(lignesStats);
-    const quote = String.fromCharCode(34);
-    const csvCell = value => quote + String(value ?? '').replaceAll(quote,quote+quote) + quote;
-    const rows = [['Joueur','Mardi (confirmés / annulations)','Jeudi (confirmés / annulations)','Saison (confirmés / annulations)']];
-    for (const joueur of joueurStats) {
-      rows.push([
+    if (!window.XLSX) {
+      alert('Le module de classeur est indisponible. Recharge la page puis réessaie.');
+      return;
+    }
+    const officiel = Array.isArray(statsAdminData.seasonSessionStats) && statsAdminData.seasonSessionStats.length > 0;
+    const lignesJoueurs = officiel ? statsAdminData.seasonPlayerStats || [] : apercuStatsVotesActuels(statsAdminData);
+    const joueurs = calculerStatsSaisonJoueurs(lignesJoueurs);
+    const global = calculerStatsGlobalesSaison(statsAdminData);
+
+    const rowsCreneaux = [['Créneau','Indicateur','Valeur']];
+    for (const [nom, stats] of [['Mardi',global.mardi],['Jeudi',global.jeudi],['Total saison',global.total]]) {
+      rowsCreneaux.push([nom,'Séances relevées',stats.seances]);
+      rowsCreneaux.push([nom,'Confirmés cumulés',stats.confirmes]);
+      rowsCreneaux.push([nom,'Annulations cumulées',stats.annulations]);
+      rowsCreneaux.push([nom,'Moyenne confirmés / séance',Number(stats.moyConfirmes.toFixed(1))]);
+      rowsCreneaux.push([nom,'Moyenne annulations / séance',Number(stats.moyAnnulations.toFixed(1))]);
+    }
+
+    const rowsJoueurs = [['Joueur','Mardi · confirmés / annulations','Jeudi · confirmés / annulations','Total saison · confirmés / annulations']];
+    for (const joueur of joueurs) {
+      rowsJoueurs.push([
         [joueur.nom, joueur.prenom].filter(Boolean).join(' '),
         joueur.mardi.confirmes + ' / ' + joueur.mardi.annulations,
         joueur.jeudi.confirmes + ' / ' + joueur.jeudi.annulations,
         (joueur.mardi.confirmes + joueur.jeudi.confirmes) + ' / ' + (joueur.mardi.annulations + joueur.jeudi.annulations)
       ]);
     }
-    const contenu='\uFEFF'+rows.map(row=>row.map(csvCell).join(';')).join('\r\n');
-    const blob=new Blob([contenu],{type:'text/csv;charset=utf-8'});
-    const url=URL.createObjectURL(blob);
-    const typeFichier = releveOfficiel ? 'saison' : 'apercu-test';
-    const lien=document.createElement('a'); lien.href=url; lien.download='stats-blr-google-sheets-'+typeFichier+'-'+new Date().toLocaleDateString('sv-SE',{timeZone:'Indian/Reunion'})+'.csv';
-    document.body.appendChild(lien); lien.click(); lien.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000);
+
+    const classeur = XLSX.utils.book_new();
+    const feuilleCreneaux = XLSX.utils.aoa_to_sheet(rowsCreneaux);
+    feuilleCreneaux['!cols'] = [{ wch: 18 }, { wch: 30 }, { wch: 12 }];
+    feuilleCreneaux['!autofilter'] = { ref: 'A1:C' + rowsCreneaux.length };
+    const feuilleJoueurs = XLSX.utils.aoa_to_sheet(rowsJoueurs);
+    feuilleJoueurs['!cols'] = [{ wch: 24 }, { wch: 28 }, { wch: 28 }, { wch: 30 }];
+    feuilleJoueurs['!autofilter'] = { ref: 'A1:D' + rowsJoueurs.length };
+    XLSX.utils.book_append_sheet(classeur, feuilleCreneaux, officiel ? 'Créneaux' : 'Créneaux test');
+    XLSX.utils.book_append_sheet(classeur, feuilleJoueurs, officiel ? 'Joueurs' : 'Joueurs test');
+    const date = new Date().toLocaleDateString('sv-SE', { timeZone: 'Indian/Reunion' });
+    const type = officiel ? 'saison' : 'apercu-test';
+    XLSX.writeFile(classeur, 'stats-blr-google-sheets-' + type + '-' + (statsAdminData.season || '') + '-' + date + '.xlsx');
   }
   function ouvrirEdition(sessionId) {
     if (!profil.admin) return alert('Active le mode Administrateur dans Profil.');

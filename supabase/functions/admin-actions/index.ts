@@ -58,7 +58,7 @@ async function demanderJetonHelloAsso(clientId: string, clientSecret: string, re
   try { resultat = JSON.parse(corps); } catch {}
   if (!response.ok || typeof resultat.access_token !== "string" || typeof resultat.refresh_token !== "string") {
     const code = typeof resultat.error === "string" ? resultat.error : "";
-    const message = typeof resultat.message === "string" ? resultat.message.replace(/[\r\n\t]/g, " ").slice(0, 140) : "";
+      const message = typeof resultat.message === "string" ? resultat.message.replace(/[\r\n\t]/g, " ").slice(0, 140) : "";
     const contentType = response.headers.get("content-type") || "type de réponse inconnu";
     const titreHtml = corps.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]?.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 100) || "";
     console.error("Refus OAuth HelloAsso", JSON.stringify({
@@ -153,10 +153,10 @@ async function chargerAdherentsHelloAsso(supabaseAdmin: ReturnType<typeof create
     let resultat: Record<string, unknown> = {};
     try { resultat = JSON.parse(corpsReponse); } catch {}
     if (!response.ok) {
-      const message = typeof resultat.message === "string" ? resultat.message.replace(/[\\r\\n\\t]/g, " ").slice(0, 140) : "";
+      const message = typeof resultat.message === "string" ? resultat.message.replace(/[\r\n\t]/g, " ").slice(0, 140) : "";
       const erreur = typeof resultat.error === "string" ? resultat.error : "";
       const contentType = response.headers.get("content-type") || "type de réponse inconnu";
-      const titreHtml = corpsReponse.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i)?.[1]?.replace(/<[^>]*>/g, " ").replace(/\\s+/g, " ").trim().slice(0, 100) || "";
+      const titreHtml = corpsReponse.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]?.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 100) || "";
       console.error("Accès HelloAsso aux adhésions refusé", JSON.stringify({
         status: response.status,
         contentType,

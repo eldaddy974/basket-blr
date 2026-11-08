@@ -150,6 +150,16 @@
     </div>
   </div>
 
+  <!-- STATISTIQUES ADMIN -->
+  <div id="modal-stats-admin" class="hidden fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-3">
+    <div class="bg-slate-800 text-slate-100 rounded-2xl w-full max-w-lg p-5 shadow-xl max-h-[90vh] overflow-y-auto">
+      <div class="flex items-start justify-between gap-3"><div><h2 class="font-extrabold text-lg">Statistiques des votes</h2><p id="stats-admin-session" class="text-sm text-slate-300 mt-1"></p></div><button onclick="fermerStatsAdmin()" class="text-blue-300 font-bold">Fermer</button></div>
+      <p id="stats-admin-message" class="text-xs text-slate-300 mt-4">Chargement des statistiques…</p>
+      <div id="stats-admin-resume" class="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-3"></div>
+      <p class="text-[11px] leading-relaxed text-slate-400 mt-4">L’historique commence avec cette mise à jour. Les votes encore actifs au moment du déploiement sont inclus ; les anciennes opérations déjà supprimées ne peuvent pas être reconstituées.</p>
+      <button id="stats-admin-export" onclick="exporterStatsCSV()" disabled class="w-full mt-4 bg-blue-600 disabled:bg-slate-700 disabled:text-slate-400 text-white font-bold py-3 rounded-xl text-sm">Télécharger le fichier compatible Excel (.csv)</button>
+    </div>
+  </div>
   <!-- PARTICIPANTS -->
   <div id="modal-participants" class="hidden fixed inset-0 z-50 bg-black/50 flex flex-col justify-end sm:justify-center p-0 sm:p-4">
     <div class="bg-slate-800 text-slate-100 rounded-t-2xl sm:rounded-2xl max-h-[85vh] flex flex-col w-full max-w-md mx-auto overflow-hidden">
@@ -185,6 +195,8 @@
   let sessionInviteId = null;
   let sessionEditionId = null;
   let minuteurOuvertureH24 = null;
+  let statsAdminSession = null;
+  let statsAdminData = null;
 
   function echapper(valeur) {
     return String(valeur ?? '').replace(/[&<>"']/g, c => ({
@@ -637,7 +649,8 @@
               <summary class="cursor-pointer list-none text-[10px] font-semibold text-slate-300 bg-slate-700 border border-slate-600 px-2 py-1 rounded-md">
                 ⚙ Gestion admin
               </summary>
-              <div class="absolute right-0 bottom-8 z-20 w-36 rounded-lg border border-slate-600 bg-slate-800 p-2 shadow-lg space-y-1">
+              <div class="absolute right-0 bottom-8 z-20 w-48 rounded-lg border border-slate-600 bg-slate-800 p-2 shadow-lg space-y-1">
+                <button onclick="ouvrirStatsAdmin('${echapper(session.id)}')" class="w-full text-left text-[10px] font-semibold text-emerald-200 hover:bg-emerald-950 px-2 py-1.5 rounded">Statistiques / Export Excel</button>
                 <button onclick="ouvrirEdition('${echapper(session.id)}')"
                   class="w-full text-left text-[10px] font-semibold text-blue-300 hover:bg-blue-900 px-2 py-1.5 rounded">
                   Modifier jour / heures
@@ -815,6 +828,69 @@
     }
   }
 
+  async function ouvrirStatsAdmin(sessionId) {
+    if (!profil.admin || !motDePasseAdminEnMemoire) return alert('Le mode Administrateur a expiré. Rouvre Profil et reconnecte-toi.');
+    const session = sessions.find(item => item.id === sessionId);
+    if (!session) return alert('Session introuvable.');
+    statsAdminSession = session;
+    statsAdminData = null;
+    document.getElementById('stats-admin-session').textContent = libelleSession(session);
+    document.getElementById('stats-admin-message').textContent = 'Chargement des statistiques…';
+    document.getElementById('stats-admin-resume').innerHTML = '';
+    document.getElementById('stats-admin-export').disabled = true;
+    document.getElementById('modal-stats-admin').classList.remove('hidden');
+    try {
+      const resultat = await appelerFonctionAdmin('get_session_stats', { sessionId });
+      statsAdminData = resultat;
+      const events = resultat.events || [];
+      const votes = events.filter(event => event.type_evenement === 'vote');
+      const annulations = events.filter(event => event.type_evenement === 'annulation');
+      const invitations = votes.filter(event => event.est_invite === true).length;
+      const adherents = votes.filter(event => !event.est_invite && event.est_abonne === true).length;
+      const nonAdherents = votes.filter(event => !event.est_invite && event.est_abonne !== true).length;
+      document.getElementById('stats-admin-message').textContent = 'Historique du créneau récurrent ; les votes actifs actuels sont inclus.';
+      const resume = [['Votes enregistrés', votes.length], ['Votes actuellement actifs', resultat.activeCount || 0], ['Annulations virtuelles', annulations.length], ['Invitations comprises', invitations], ['Votes adhérents', adherents], ['Votes non-adhérents', nonAdherents]];
+      document.getElementById('stats-admin-resume').innerHTML = resume.map(function(item) {
+        return '<div class="rounded-xl border border-slate-600 bg-slate-700/70 p-3"><p class="text-[10px] text-slate-300">' + echapper(item[0]) + '</p><p class="text-xl font-extrabold">' + echapper(item[1]) + '</p></div>';
+      }).join('');
+      document.getElementById('stats-admin-export').disabled = false;
+    } catch (error) {
+      document.getElementById('stats-admin-message').textContent = 'Impossible de charger les statistiques : ' + (error.message || error);
+    }
+  }
+
+  function fermerStatsAdmin() {
+    document.getElementById('modal-stats-admin').classList.add('hidden');
+  }
+
+  function exporterStatsCSV() {
+    if (!statsAdminData || !statsAdminSession) return;
+    const evenementLibelle = value => value === 'annulation' ? 'Annulation virtuelle' : 'Vote';
+    const categorie = event => event.est_invite ? 'Invité' : (event.est_abonne ? 'Adhérent' : 'Non-adhérent');
+    const dateTexte = value => {
+      if (!value) return '';
+      const date = new Date(Number(value) || value);
+      return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('fr-FR', { timeZone: 'Indian/Reunion', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    };
+    const quote = String.fromCharCode(34);
+    const csvCell = value => quote + String(value ?? '').replaceAll(quote, quote + quote) + quote;
+    const rows = [['Événement', 'Date du créneau', 'Horaires', 'Prénom', 'Nom', 'Catégorie', 'Statut du vote', 'Date de l’action', 'Effectué par', 'Vote actuellement actif', 'Note']];
+    const events = [...(statsAdminData.events || [])].sort((a, b) => new Date(a.created_at || Number(a.date_demande) || 0) - new Date(b.created_at || Number(b.date_demande) || 0));
+    for (const event of events) {
+      rows.push([evenementLibelle(event.type_evenement), dateTexte(event.session_debut_date), event.session_horaires || '', event.prenom || '', event.nom || '', categorie(event), event.statut === 'confirmed' ? 'Confirmé' : (event.statut === 'waitlisted' ? 'En attente' : ''), dateTexte(event.created_at || event.date_demande), event.acteur || '', event.type_evenement === 'vote' ? (event.actif ? 'Oui' : 'Non') : '', event.ancien_enregistrement ? 'Vote actif préexistant ; ancien historique indisponible' : '']);
+    }
+    const contenu = '\uFEFF' + rows.map(row => row.map(csvCell).join(';')).join('\r\n');
+    const blob = new Blob([contenu], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const lien = document.createElement('a');
+    const jour = new Date().toLocaleDateString('sv-SE', { timeZone: 'Indian/Reunion' });
+    lien.href = url;
+    lien.download = 'stats-' + statsAdminSession.id + '-' + jour + '.csv';
+    document.body.appendChild(lien);
+    lien.click();
+    lien.remove();
+    URL.revokeObjectURL(url);
+  }
   function ouvrirEdition(sessionId) {
     if (!profil.admin) return alert('Active le mode Administrateur dans Profil.');
     const session = sessions.find(s => s.id === sessionId);

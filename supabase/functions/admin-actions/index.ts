@@ -52,7 +52,10 @@ async function demanderJetonHelloAsso(clientId: string, clientSecret: string, re
   const resultat = await response.json().catch(() => ({}));
   if (!response.ok || typeof resultat.access_token !== "string" || typeof resultat.refresh_token !== "string") {
     const code = typeof resultat.error === "string" ? resultat.error : "";
-    throw new Error("Authentification HelloAsso refusée (HTTP " + response.status + (code ? ", " + code : "") + "). Vérifie que le Client ID et le Client Secret enregistrés dans Supabase viennent de la même clé API HelloAsso.");
+    const message = typeof resultat.message === "string" ? resultat.message.replace(/[\\r\\n\\t]/g, " ").slice(0, 140) : "";
+    const contentType = response.headers.get("content-type") || "type de réponse inconnu";
+    const detail = code || message || contentType;
+    throw new Error("Authentification HelloAsso refusée (HTTP " + response.status + (detail ? ", " + detail : "") + "). Vérifie la clé API HelloAsso et les droits de l’association.");
   }
   return resultat;
 }

@@ -39,10 +39,22 @@ function obtenirCleSecrete() {
   }
 }
 
-async function recalculerPlaces(supabase, sessionId, capacite) {
+async function recalculerPlaces(supabase, sessionId) {
+  const { data: session, error: sessionError } = await supabase
+    .from("sessions")
+    .select("debut_date,max_capacity")
+    .eq("id", sessionId)
+    .maybeSingle();
+  if (sessionError) throw sessionError;
+  if (!session) return new Map();
+
+  const dateDebut = new Date(session.debut_date).getTime();
+  if (!Number.isFinite(dateDebut)) throw new Error("Date de créneau invalide.");
+  const avantH24 = Date.now() < dateDebut - 24 * 60 * 60 * 1000;
+  const capacite = Number(session.max_capacity) || 22;
   const { data, error } = await supabase
     .from("inscriptions")
-    .select("id,est_abonne,date_demande")
+    .select("id,est_abonne,date_demande,statut")
     .eq("session_id", sessionId)
     .order("date_demande", { ascending: true });
   if (error) throw error;
@@ -51,17 +63,23 @@ async function recalculerPlaces(supabase, sessionId, capacite) {
     const priorite = Number(b.est_abonne === true) - Number(a.est_abonne === true);
     return priorite || Number(a.date_demande || 0) - Number(b.date_demande || 0);
   });
-  const misesAJour = await Promise.all(classees.map((inscription, index) =>
-    supabase.from("inscriptions")
-      .update({ statut: index < capacite ? "confirmed" : "waitlisted" })
-      .eq("id", inscription.id)
-  ));
+  let nombrePlacesAttribuees = 0;
+  const statuts = new Map();
+  for (const inscription of classees) {
+    const admissible = inscription.est_abonne === true || !avantH24;
+    const statut = admissible && nombrePlacesAttribuees < capacite ? "confirmed" : "waitlisted";
+    if (statut === "confirmed") nombrePlacesAttribuees++;
+    statuts.set(inscription.id, statut);
+  }
+
+  const misesAJour = await Promise.all(classees
+    .filter(inscription => inscription.statut !== statuts.get(inscription.id))
+    .map(inscription => supabase.from("inscriptions")
+      .update({ statut: statuts.get(inscription.id) })
+      .eq("id", inscription.id)));
   const erreurMaj = misesAJour.find(resultat => resultat.error)?.error;
   if (erreurMaj) throw erreurMaj;
-  return new Map(classees.map((inscription, index) => [
-    inscription.id,
-    index < capacite ? "confirmed" : "waitlisted",
-  ]));
+  return statuts;
 }
 
 Deno.serve(async req => {
@@ -80,6 +98,13 @@ Deno.serve(async req => {
     const action = body?.action;
 
     if (action === "list") {
+      const { data: sessions, error: sessionsError } = await supabase
+        .from("sessions")
+        .select("id")
+        .order("debut_date", { ascending: true });
+      if (sessionsError) throw sessionsError;
+      for (const session of sessions || []) await recalculerPlaces(supabase, session.id);
+
       const { data, error } = await supabase
         .from("inscriptions")
         .select("id,session_id,prenom,nom,est_invite,invite_par_nom,statut,date_demande")
@@ -103,7 +128,7 @@ Deno.serve(async req => {
 
       const { data: session, error: sessionError } = await supabase
         .from("sessions")
-        .select("id,debut_date,max_capacity,statut")
+        .select("id,nom,horaires,debut_date,max_capacity,statut")
         .eq("id", sessionId)
         .maybeSingle();
       if (sessionError) throw sessionError;
@@ -112,10 +137,6 @@ Deno.serve(async req => {
 
       const dateDebut = new Date(session.debut_date).getTime();
       if (!Number.isFinite(dateDebut)) return json({ error: "Date de créneau invalide." }, 500);
-      const avantH24 = Date.now() < dateDebut - 24 * 60 * 60 * 1000;
-      if ((estInvite || !estAbonne) && avantH24) {
-        return json({ error: "Les votes des non-adhérents et les invitations ouvrent exactement 24 heures avant le créneau." }, 409);
-      }
 
       const { data: inscriptions, error: inscriptionsError } = await supabase
         .from("inscriptions")
@@ -126,13 +147,7 @@ Deno.serve(async req => {
       if ((inscriptions || []).some(i => memeNom(i.prenom, i.nom, prenom, nom))) {
         return json({ error: "Cette personne est déjà inscrite sur ce créneau, y compris à l’essai ou par invitation." }, 409);
       }
-      if (estInvite && (inscriptions || []).some(i =>
-        i.est_invite && normaliser(i.invite_par_nom) === normaliser(inviteParNom)
-      )) {
-        return json({ error: "Un seul invité est autorisé par adhérent et par créneau." }, 409);
-      }
-
-      const capacite = Number(session.max_capacity) || 22;
+      const dateDemande = Date.now();
       const { data: inscription, error: insertError } = await supabase
         .from("inscriptions")
         .insert({
@@ -143,13 +158,35 @@ Deno.serve(async req => {
           invite_par_nom: estInvite ? inviteParNom : null,
           est_abonne: estAbonne,
           statut: "waitlisted",
-          date_demande: Date.now(),
+          date_demande: dateDemande,
           reconfirme: false,
         })
         .select("id,statut")
         .single();
       if (insertError) throw insertError;
-      const statuts = await recalculerPlaces(supabase, sessionId, capacite);
+      const statuts = await recalculerPlaces(supabase, sessionId);
+      const { error: eventError } = await supabase.from("inscription_evenements").insert({
+        inscription_id: inscription.id,
+        session_id: sessionId,
+        session_nom: session.nom,
+        session_debut_date: session.debut_date,
+        session_horaires: session.horaires,
+        prenom,
+        nom,
+        est_invite: estInvite,
+        invite_par_nom: estInvite ? inviteParNom : null,
+        est_abonne: estAbonne,
+        type_evenement: "vote",
+        statut: statuts.get(inscription.id) || inscription.statut,
+        date_demande: dateDemande,
+        acteur: estInvite ? inviteParNom : `${prenom} ${nom}`,
+      });
+      if (eventError) {
+        const { error: rollbackError } = await supabase.from("inscriptions").delete().eq("id", inscription.id);
+        if (rollbackError) console.error("Rollback du vote impossible :", rollbackError);
+        else await recalculerPlaces(supabase, sessionId);
+        throw eventError;
+      }
       return json({ inscription: { ...inscription, statut: statuts.get(inscription.id) } });
     }
 
@@ -164,7 +201,7 @@ Deno.serve(async req => {
 
       const { data: inscription, error: findError } = await supabase
         .from("inscriptions")
-        .select("id,session_id,prenom,nom,est_invite,invite_par_nom")
+        .select("id,session_id,prenom,nom,est_invite,invite_par_nom,est_abonne,statut,date_demande")
         .eq("id", id)
         .maybeSingle();
       if (findError) throw findError;
@@ -177,15 +214,45 @@ Deno.serve(async req => {
         return json({ error: "Tu ne peux annuler que ton vote ou l’invité que tu as inscrit." }, 403);
       }
 
-      const { error: deleteError } = await supabase.from("inscriptions").delete().eq("id", id);
-      if (deleteError) throw deleteError;
-      const { data: session, error: sessionError } = await supabase
+      const { data: sessionSnapshot, error: sessionSnapshotError } = await supabase
         .from("sessions")
-        .select("max_capacity")
+        .select("nom,debut_date,horaires")
         .eq("id", inscription.session_id)
         .maybeSingle();
-      if (sessionError) throw sessionError;
-      if (session) await recalculerPlaces(supabase, inscription.session_id, Number(session.max_capacity) || 22);
+      if (sessionSnapshotError) throw sessionSnapshotError;
+
+      const { data: annulationEvent, error: eventError } = await supabase
+        .from("inscription_evenements")
+        .insert({
+          inscription_id: inscription.id,
+          session_id: inscription.session_id,
+          session_nom: sessionSnapshot?.nom || null,
+          session_debut_date: sessionSnapshot?.debut_date || null,
+          session_horaires: sessionSnapshot?.horaires || null,
+          prenom: inscription.prenom,
+          nom: inscription.nom,
+          est_invite: inscription.est_invite === true,
+          invite_par_nom: inscription.invite_par_nom || null,
+          est_abonne: inscription.est_abonne === true,
+          type_evenement: "annulation",
+          statut: inscription.statut || null,
+          date_demande: inscription.date_demande || null,
+          acteur: `${actorPrenom} ${actorNom}`.trim() || null,
+        })
+        .select("id")
+        .single();
+      if (eventError) throw eventError;
+
+      const { error: deleteError } = await supabase.from("inscriptions").delete().eq("id", id);
+      if (deleteError) {
+        const { error: rollbackError } = await supabase
+          .from("inscription_evenements")
+          .delete()
+          .eq("id", annulationEvent.id);
+        if (rollbackError) console.error("Rollback de l’annulation impossible :", rollbackError);
+        throw deleteError;
+      }
+      await recalculerPlaces(supabase, inscription.session_id);
       return json({ ok: true });
     }
 

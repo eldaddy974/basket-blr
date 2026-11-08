@@ -196,8 +196,8 @@
   const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   let profil = {
-    prenom: localStorage.getItem('blr_prenom') || 'Dave',
-    nom: localStorage.getItem('blr_nom') || 'Govinden',
+    prenom: localStorage.getItem('blr_prenom') || '',
+    nom: localStorage.getItem('blr_nom') || '',
     abonne: localStorage.getItem('blr_abonne') === 'true',
     admin: false
   };
@@ -343,6 +343,10 @@
     mettreAJourProfil();
     sessions = sessionsLocales();
     afficherSessions();
+    if (!profilComplet()) {
+      ouvrirProfil();
+      afficherMessageProfil('Pour participer, renseigne ton prénom et ton nom.', false);
+    }
 
     try {
       const { data, error } = await supabaseClient
@@ -386,8 +390,14 @@
     }
   }
 
+  function profilComplet() {
+    return Boolean(String(profil.prenom || '').trim() && String(profil.nom || '').trim());
+  }
+
   function mettreAJourProfil() {
-    document.getElementById('joueur-entete').textContent = `${profil.prenom} ${profil.nom}`;
+    document.getElementById('joueur-entete').textContent = profilComplet()
+      ? `${profil.prenom.trim()} ${profil.nom.trim()}`
+      : 'Profil à compléter';
     document.getElementById('profil-prenom').value = profil.prenom;
     document.getElementById('profil-nom').value = profil.nom;
     document.getElementById('profil-abonne').checked = profil.abonne;
@@ -582,21 +592,26 @@
       });
 
       const boutonVote = !annulee && !estPassee
-        ? (monVote
-          ? `<button onclick="annulerInscription('${echapper(monVote.id)}')"
-               class="flex-1 bg-red-600 text-white font-extrabold text-xs py-3 rounded-xl">
-               Annuler ma place (${monVote.statut === 'confirmed' ? 'Confirmée' : 'Attente'})
-             </button>`
-          : dejaInscrit
-            ? `<button disabled class="flex-1 bg-slate-700 text-slate-300 font-extrabold text-xs py-3 rounded-xl">
-                 Déjà inscrit sur ce créneau
+        ? (!profilComplet()
+          ? `<button onclick="ouvrirProfil()"
+                 class="flex-1 bg-blue-600 text-white font-extrabold text-xs py-3 rounded-xl">
+                 Renseigner mon profil
                </button>`
-            : `<button onclick="participer('${echapper(session.id)}')"
-                   class="flex-1 ${plein ? 'bg-orange-600' : 'bg-blue-600'} text-white font-extrabold text-xs py-3 rounded-xl">
-                   ${profil.abonne && !plein ? 'Participer (prioritaire)' :
-                     (!profil.abonne && avantH24 ? 'Rejoindre la liste d’attente' :
-                       (plein ? 'Rejoindre la file d’attente' : 'Participer'))}
-                 </button>`)
+          : monVote
+            ? `<button onclick="annulerInscription('${echapper(monVote.id)}')"
+                 class="flex-1 bg-red-600 text-white font-extrabold text-xs py-3 rounded-xl">
+                 Annuler ma place (${monVote.statut === 'confirmed' ? 'Confirmée' : 'Attente'})
+               </button>`
+            : dejaInscrit
+              ? `<button disabled class="flex-1 bg-slate-700 text-slate-300 font-extrabold text-xs py-3 rounded-xl">
+                   Déjà inscrit sur ce créneau
+                 </button>`
+              : `<button onclick="participer('${echapper(session.id)}')"
+                     class="flex-1 ${plein ? 'bg-orange-600' : 'bg-blue-600'} text-white font-extrabold text-xs py-3 rounded-xl">
+                     ${profil.abonne && !plein ? 'Participer (prioritaire)' :
+                       (!profil.abonne && avantH24 ? 'Rejoindre la liste d’attente' :
+                         (plein ? 'Rejoindre la file d’attente' : 'Participer'))}
+                   </button>`)
         : '';
 
       const invitesHtml = mesInvites.map(invite => `
@@ -740,6 +755,11 @@
   }
 
   async function participer(sessionId) {
+    if (!profilComplet()) {
+      ouvrirProfil();
+      afficherMessageProfil('Prénom et nom obligatoires pour voter.', true);
+      return;
+    }
     const session = sessions.find(s => s.id === sessionId);
     if (!session) return alert('Session introuvable.');
     if (inscriptionDuMemeNom(sessionId, profil.prenom, profil.nom)) {
@@ -760,6 +780,11 @@
   }
 
   function ouvrirInvite(sessionId) {
+    if (!profilComplet()) {
+      ouvrirProfil();
+      afficherMessageProfil('Renseigne d’abord ton prénom et ton nom dans Profil.', true);
+      return;
+    }
     sessionInviteId = sessionId;
     document.getElementById('invite-prenom').value = '';
     document.getElementById('invite-nom').value = '';
@@ -771,6 +796,12 @@
   }
 
   async function inscrireInvite() {
+    if (!profilComplet()) {
+      fermerInvite();
+      ouvrirProfil();
+      afficherMessageProfil('Renseigne d’abord ton prénom et ton nom dans Profil.', true);
+      return;
+    }
     const prenom = document.getElementById('invite-prenom').value.trim();
     const nom = document.getElementById('invite-nom').value.trim();
     if (!prenom || !nom) return alert('Prénom et nom de l’invité obligatoires.');

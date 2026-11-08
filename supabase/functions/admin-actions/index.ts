@@ -143,11 +143,30 @@ async function chargerAdherentsHelloAsso(supabaseAdmin: ReturnType<typeof create
       "/forms/Membership/" + encodeURIComponent(formulaire) + "/orders?pageIndex=" + pageIndex +
       "&pageSize=" + pageSize + "&withDetails=true&sortOrder=Asc";
     const response = await fetch(url, {
-      headers: { Authorization: "Bearer " + jeton, Accept: "application/json" },
+      headers: {
+        Authorization: "Bearer " + jeton,
+        Accept: "application/json",
+        "User-Agent": "BasketBLR-Reservations/1.0",
+      },
     });
-    const resultat = await response.json().catch(() => ({}));
+    const corpsReponse = await response.text().catch(() => "");
+    let resultat: Record<string, unknown> = {};
+    try { resultat = JSON.parse(corpsReponse); } catch {}
     if (!response.ok) {
-      throw new Error("Lecture du formulaire HelloAsso impossible (HTTP " + response.status + ").");
+      const message = typeof resultat.message === "string" ? resultat.message.replace(/[\\r\\n\\t]/g, " ").slice(0, 140) : "";
+      const erreur = typeof resultat.error === "string" ? resultat.error : "";
+      const contentType = response.headers.get("content-type") || "type de réponse inconnu";
+      const titreHtml = corpsReponse.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i)?.[1]?.replace(/<[^>]*>/g, " ").replace(/\\s+/g, " ").trim().slice(0, 100) || "";
+      console.error("Accès HelloAsso aux adhésions refusé", JSON.stringify({
+        status: response.status,
+        contentType,
+        server: response.headers.get("server"),
+        cfRay: response.headers.get("cf-ray"),
+        message: message || erreur || null,
+        htmlTitle: titreHtml || null,
+      }));
+      const detail = message || erreur || (titreHtml ? contentType + ", " + titreHtml : contentType);
+      throw new Error("Accès à la liste des adhésions HelloAsso refusé (HTTP " + response.status + (detail ? ", " + detail : "") + ").");
     }
 
     const commandes = Array.isArray(resultat.data) ? resultat.data : [];

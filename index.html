@@ -166,11 +166,11 @@
       <section class="mt-4"><h3 class="font-extrabold text-sm">Votes de la semaine — annulations</h3><div id="admin-votes-etat" class="mt-1 text-xs text-slate-300">Chargement des votes…</div><div id="admin-votes-listes" class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3"></div></section>
       <section class="mt-4"><h3 class="font-extrabold text-sm">Gestion des créneaux</h3><div id="admin-creneaux-actions" class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3"></div></section>
       <section class="mt-4 rounded-xl border border-slate-600 bg-slate-900/60 p-3 sm:p-4">
-        <h3 class="font-extrabold text-sm">Statistiques depuis le début de l’historique</h3>
+        <h3 class="font-extrabold text-sm">Statistiques de la saison</h3>
         <p id="admin-stats-etat" class="mt-1 text-[11px] text-slate-400">Chargement des statistiques…</p>
-        <div id="admin-stats-resume" class="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2"></div>
-        <p class="mt-3 text-[11px] leading-relaxed text-slate-400">Les statistiques couvrent les votes et annulations conservés pour mardi et jeudi. Les opérations effacées avant l’activation de l’historique ne peuvent pas être reconstituées.</p>
-        <button id="admin-stats-export" onclick="exporterStatsCSV()" disabled class="w-full mt-3 bg-blue-600 disabled:bg-slate-700 disabled:text-slate-400 text-white font-bold py-3 rounded-xl text-sm">Exporter toute l’historique pour Excel (.csv)</button>
+        <div id="admin-stats-joueurs" class="mt-3"></div>
+        <p class="mt-3 text-[11px] leading-relaxed text-slate-400">Le relevé est figé chaque jeudi à 23 h (heure de La Réunion), avant la remise à zéro du vendredi à 6 h. Le cumul saisonnier commence au premier relevé automatique; les anciennes confirmations ne peuvent pas être reconstituées de façon fiable. Les invités sont comptés sous le nom renseigné.</p>
+        <button id="admin-stats-export" onclick="exporterStatsCSV()" disabled class="w-full mt-3 bg-blue-600 disabled:bg-slate-700 disabled:text-slate-400 text-white font-bold py-3 rounded-xl text-sm">Exporter les statistiques de saison pour Excel (.csv)</button>
       </section>
     </div>
   </div>
@@ -836,9 +836,9 @@
       statsAdminData = resultat;
       inscriptions = resultat.activeVotes || [];
       afficherVotesAdmin(resultat);
-      afficherResumeStatsAdmin(resultat);
+      afficherStatsSaisonAdmin(resultat);
       messageVotes.textContent = 'Votes confirmés et en attente des créneaux actuels.';
-      messageStats.textContent = 'Historique global mardi + jeudi, toutes les semaines conservées.';
+      messageStats.textContent = resultat.seasonPlayerStats?.length ? ('Saison ' + resultat.season + ' · cumul mis à jour chaque jeudi à 23 h.') : ('Saison ' + resultat.season + ' · premier relevé automatique jeudi à 23 h.');
       document.getElementById('admin-stats-export').disabled = false;
     } catch (error) {
       messageVotes.textContent = 'Impossible de charger les votes : ' + (error.message || error);
@@ -887,32 +887,105 @@
     }).join('') || '<p class="text-xs text-slate-400">Aucun vote cette semaine.</p>';
   }
 
-  function afficherResumeStatsAdmin(resultat) {
-    const events = resultat.events || [];
-    const votes = events.filter(event => event.type_evenement === 'vote');
-    const annulations = events.filter(event => event.type_evenement === 'annulation');
-    const count = (sessionId,type) => events.filter(event => event.session_id === sessionId && event.type_evenement === type).length;
-    const resume = [['Votes enregistrés',votes.length],['Votes actifs',resultat.activeCount||0],['Annulations virtuelles',annulations.length],['Invitations',votes.filter(event=>event.est_invite).length],['Mardi · votes',count('session-mardi','vote')],['Mardi · annulations',count('session-mardi','annulation')],['Jeudi · votes',count('session-jeudi','vote')],['Jeudi · annulations',count('session-jeudi','annulation')]];
-    document.getElementById('admin-stats-resume').innerHTML = resume.map(item=>'<div class="rounded-xl border border-slate-600 bg-slate-700/70 p-3"><p class="text-[10px] text-slate-300">'+echapper(item[0])+'</p><p class="text-xl font-extrabold">'+echapper(item[1])+'</p></div>').join('');
+  function calculerStatsSaisonJoueurs(lignes) {
+    const joueurs = new Map();
+    const cleNom = valeur => String(valeur || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLocaleLowerCase('fr-FR').replace(/\s+/g, ' ');
+    for (const ligne of lignes || []) {
+      if (!['session-mardi','session-jeudi'].includes(ligne.session_id)) continue;
+      const nom = String(ligne.nom || '').trim();
+      const prenom = String(ligne.prenom || '').trim();
+      if (!nom && !prenom) continue;
+      const cle = cleNom(nom) + '|' + cleNom(prenom);
+      if (!joueurs.has(cle)) {
+        joueurs.set(cle, {
+          nom, prenom,
+          mardi: { confirmes: 0, annulations: 0 },
+          jeudi: { confirmes: 0, annulations: 0 }
+        });
+      }
+      const joueur = joueurs.get(cle);
+      const jour = ligne.session_id === 'session-mardi' ? 'mardi' : 'jeudi';
+      joueur[jour].confirmes += Number(ligne.votes_confirmes) || 0;
+      joueur[jour].annulations += Number(ligne.annulations) || 0;
+    }
+    return [...joueurs.values()].sort((a,b) =>
+      a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'base' }) ||
+      a.prenom.localeCompare(b.prenom, 'fr', { sensitivity: 'base' })
+    );
+  }
+
+  function afficherStatsSaisonAdmin(resultat) {
+    const zone = document.getElementById('admin-stats-joueurs');
+    if (!zone) return;
+    const joueurs = calculerStatsSaisonJoueurs(resultat.seasonPlayerStats || []);
+    if (!joueurs.length) {
+      zone.innerHTML = '<p class="rounded-lg border border-slate-700 bg-slate-800/70 p-3 text-xs text-slate-300">Aucun relevé de la saison pour le moment. Le premier sera enregistré jeudi à 23 h, avant la remise à zéro.</p>';
+      return;
+    }
+    const total = joueur => ({
+      confirmes: joueur.mardi.confirmes + joueur.jeudi.confirmes,
+      annulations: joueur.mardi.annulations + joueur.jeudi.annulations
+    });
+    const lignes = joueurs.map(joueur => {
+      const cumule = total(joueur);
+      return '<tr class="border-b border-slate-700/80">' +
+        '<th scope="row" class="sticky left-0 z-10 min-w-[105px] bg-slate-800 px-2 py-2 text-left font-bold text-slate-100">' + echapper([joueur.nom, joueur.prenom].filter(Boolean).join(' ')) + '</th>' +
+        '<td class="px-2 py-2 text-center">' + joueur.mardi.confirmes + '</td>' +
+        '<td class="px-2 py-2 text-center">' + joueur.mardi.annulations + '</td>' +
+        '<td class="px-2 py-2 text-center">' + joueur.jeudi.confirmes + '</td>' +
+        '<td class="px-2 py-2 text-center">' + joueur.jeudi.annulations + '</td>' +
+        '<td class="px-2 py-2 text-center font-bold text-emerald-200">' + cumule.confirmes + '</td>' +
+        '<td class="px-2 py-2 text-center font-bold text-amber-200">' + cumule.annulations + '</td>' +
+      '</tr>';
+    }).join('');
+    zone.innerHTML =
+      '<div class="overflow-x-auto rounded-lg border border-slate-700" style="-webkit-overflow-scrolling:touch">' +
+        '<table class="min-w-[600px] w-full text-[10px] text-slate-200">' +
+          '<thead>' +
+            '<tr class="bg-slate-800 text-[10px] uppercase">' +
+              '<th rowspan="2" class="sticky left-0 z-20 min-w-[105px] bg-slate-800 px-2 py-2 text-left">Joueur</th>' +
+              '<th colspan="2" class="px-2 py-2 text-blue-200">Mardi</th>' +
+              '<th colspan="2" class="px-2 py-2 text-orange-200">Jeudi</th>' +
+              '<th colspan="2" class="px-2 py-2 text-emerald-200">Total saison</th>' +
+            '</tr>' +
+            '<tr class="bg-slate-900 text-slate-300">' +
+              '<th class="px-2 py-2">Confirmés</th><th class="px-2 py-2">Annulés</th>' +
+              '<th class="px-2 py-2">Confirmés</th><th class="px-2 py-2">Annulés</th>' +
+              '<th class="px-2 py-2">Confirmés</th><th class="px-2 py-2">Annulés</th>' +
+            '</tr>' +
+          '</thead>' +
+          '<tbody>' + lignes + '</tbody>' +
+        '</table>' +
+      '</div>';
   }
 
   function exporterStatsCSV() {
     if (!statsAdminData) return;
-    const allEvents = statsAdminData.events || [];
-    const votes = allEvents.filter(event=>event.type_evenement==='vote');
-    const annulations = allEvents.filter(event=>event.type_evenement==='annulation');
-    const count = (sessionId,type) => allEvents.filter(event=>event.session_id===sessionId&&event.type_evenement===type).length;
+    const joueurStats = calculerStatsSaisonJoueurs(statsAdminData.seasonPlayerStats || []);
     const quote = String.fromCharCode(34);
     const csvCell = value => quote + String(value ?? '').replaceAll(quote,quote+quote) + quote;
-    const rows = [['Statistiques BLR — historique conservé'],['Votes enregistrés',votes.length],['Votes actifs',statsAdminData.activeCount||0],['Annulations virtuelles',annulations.length],['Mardi · votes',count('session-mardi','vote')],['Mardi · annulations',count('session-mardi','annulation')],['Jeudi · votes',count('session-jeudi','vote')],['Jeudi · annulations',count('session-jeudi','annulation')],[],['Événement','Date du créneau','Horaires','Jour','Prénom','Nom','Catégorie','Statut du vote','Date de l’action','Effectué par','Vote actif','Note']];
+    const rows = [
+      ['Statistiques BLR — saison ' + (statsAdminData.season || '')],
+      ['Nom','Prénom','Mardi · votes confirmés','Mardi · annulations','Jeudi · votes confirmés','Jeudi · annulations','Total saison · votes confirmés','Total saison · annulations']
+    ];
+    for (const joueur of joueurStats) {
+      rows.push([
+        joueur.nom, joueur.prenom,
+        joueur.mardi.confirmes, joueur.mardi.annulations,
+        joueur.jeudi.confirmes, joueur.jeudi.annulations,
+        joueur.mardi.confirmes + joueur.jeudi.confirmes,
+        joueur.mardi.annulations + joueur.jeudi.annulations
+      ]);
+    }
+    rows.push([],['Journal détaillé des votes et annulations conservé'],['Événement','Date du créneau','Horaires','Jour','Prénom','Nom','Catégorie','Statut du vote','Date de l’action','Effectué par','Vote actif','Note']);
     const dateTexte = value => { if(!value)return ''; const date=new Date(Number(value)||value); return Number.isNaN(date.getTime())?'':date.toLocaleString('fr-FR',{timeZone:'Indian/Reunion',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}); };
     const categorie = event => event.est_invite?'Invité':(event.est_abonne?'Adhérent':'Non-adhérent');
-    const liste=[...allEvents].sort((a,b)=>new Date(a.created_at||Number(a.date_demande)||0)-new Date(b.created_at||Number(b.date_demande)||0));
+    const liste=[...(statsAdminData.events || [])].sort((a,b)=>new Date(a.created_at||Number(a.date_demande)||0)-new Date(b.created_at||Number(b.date_demande)||0));
     for (const event of liste) rows.push([event.type_evenement==='annulation'?'Annulation virtuelle':'Vote',dateTexte(event.session_debut_date),event.session_horaires||'',event.session_nom||event.session_id||'',event.prenom||'',event.nom||'',categorie(event),event.statut==='confirmed'?'Confirmé':(event.statut==='waitlisted'?'En attente':''),dateTexte(event.created_at||event.date_demande),event.acteur||'',event.type_evenement==='vote'?(event.actif?'Oui':'Non'):'',event.ancien_enregistrement?'Vote actif préexistant; ancien historique indisponible':'']);
-    const contenu='\uFEFF'+rows.map(row=>row.map(csvCell).join(';')).join('\r\n');
+    const contenu='\\uFEFF'+rows.map(row=>row.map(csvCell).join(';')).join('\\r\\n');
     const blob=new Blob([contenu],{type:'text/csv;charset=utf-8'});
     const url=URL.createObjectURL(blob);
-    const lien=document.createElement('a'); lien.href=url; lien.download='stats-blr-toutes-semaines-'+new Date().toLocaleDateString('sv-SE',{timeZone:'Indian/Reunion'})+'.csv';
+    const lien=document.createElement('a'); lien.href=url; lien.download='stats-blr-saison-'+new Date().toLocaleDateString('sv-SE',{timeZone:'Indian/Reunion'})+'.csv';
     document.body.appendChild(lien); lien.click(); lien.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000);
   }
   function ouvrirEdition(sessionId) {

@@ -170,7 +170,8 @@
         <p id="admin-stats-etat" class="mt-1 text-[11px] text-slate-400">Chargement des statistiques…</p>
         <div id="admin-stats-joueurs" class="mt-3"></div>
         <p class="mt-3 text-[11px] leading-relaxed text-slate-400">Le relevé est figé chaque jeudi à 23 h (heure de La Réunion), avant la remise à zéro du vendredi à 6 h. Le cumul saisonnier commence au premier relevé automatique; les anciennes confirmations ne peuvent pas être reconstituées de façon fiable. Les invités sont comptés sous le nom renseigné.</p>
-        <button id="admin-stats-export" onclick="exporterStatsCSV()" disabled class="w-full mt-3 bg-blue-600 disabled:bg-slate-700 disabled:text-slate-400 text-white font-bold py-3 rounded-xl text-sm">Exporter les statistiques de saison pour Excel (.csv)</button>
+        <button id="admin-stats-export" onclick="exporterStatsCSV()" disabled class="w-full mt-3 bg-blue-600 disabled:bg-slate-700 disabled:text-slate-400 text-white font-bold py-3 rounded-xl text-sm">Télécharger pour Google Sheets (.csv)</button>
+        <p class="mt-1 text-[10px] text-slate-400">Dans Google Sheets : Fichier → Importer, puis sélectionne le fichier téléchargé.</p>
       </section>
     </div>
   </div>
@@ -1013,7 +1014,7 @@
     const contenu='\uFEFF'+rows.map(row=>row.map(csvCell).join(';')).join('\r\n');
     const blob=new Blob([contenu],{type:'text/csv;charset=utf-8'});
     const url=URL.createObjectURL(blob);
-    const lien=document.createElement('a'); lien.href=url; lien.download='stats-blr-saison-'+new Date().toLocaleDateString('sv-SE',{timeZone:'Indian/Reunion'})+'.csv';
+    const lien=document.createElement('a'); lien.href=url; lien.download='stats-blr-google-sheets-'+new Date().toLocaleDateString('sv-SE',{timeZone:'Indian/Reunion'})+'.csv';
     document.body.appendChild(lien); lien.click(); lien.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000);
   }
   function ouvrirEdition(sessionId) {

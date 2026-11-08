@@ -51,14 +51,15 @@ async function demanderJetonHelloAsso(clientId: string, clientSecret: string, re
   });
   const resultat = await response.json().catch(() => ({}));
   if (!response.ok || typeof resultat.access_token !== "string" || typeof resultat.refresh_token !== "string") {
-    throw new Error("Authentification HelloAsso impossible (HTTP " + response.status + "). Vérifie les clés API et leurs droits.");
+    const code = typeof resultat.error === "string" ? resultat.error : "";
+    throw new Error("Authentification HelloAsso refusée (HTTP " + response.status + (code ? ", " + code : "") + "). Vérifie que le Client ID et le Client Secret enregistrés dans Supabase viennent de la même clé API HelloAsso.");
   }
   return resultat;
 }
 
 async function obtenirJetonHelloAsso(supabaseAdmin: ReturnType<typeof createClient>) {
-  const clientId = Deno.env.get("HELLOASSO_CLIENT_ID");
-  const clientSecret = Deno.env.get("HELLOASSO_CLIENT_SECRET");
+  const clientId = Deno.env.get("HELLOASSO_CLIENT_ID")?.trim();
+  const clientSecret = Deno.env.get("HELLOASSO_CLIENT_SECRET")?.trim();
   if (!clientId || !clientSecret) {
     throw new Error("Les secrets HELLOASSO_CLIENT_ID et HELLOASSO_CLIENT_SECRET sont requis dans Supabase.");
   }

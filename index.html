@@ -397,6 +397,12 @@
     document.getElementById('modal-profil').classList.add('hidden');
   }
 
+  function terminerSauvegardeProfil() {
+    mettreAJourProfil();
+    afficherSessions();
+    fermerProfil();
+  }
+
   function afficherZoneMotDePasse() {
     const afficher = document.getElementById('profil-admin').checked && !profil.admin;
     document.getElementById('zone-mot-de-passe').classList.toggle('hidden', !afficher);
@@ -471,16 +477,12 @@
     if (!adminCoche) {
       profil.admin = false;
       motDePasseAdminEnMemoire = '';
-      mettreAJourProfil();
-      afficherSessions();
-      afficherMessageProfil('Profil enregistré.');
+      terminerSauvegardeProfil();
       return;
     }
 
     if (profil.admin && motDePasseAdminEnMemoire) {
-      mettreAJourProfil();
-      afficherSessions();
-      afficherMessageProfil('Profil enregistré. Mode Administrateur actif.');
+      terminerSauvegardeProfil();
       return;
     }
 
@@ -506,9 +508,7 @@
         throw new Error('La fonction admin-actions n’a pas confirmé le mot de passe.');
       }
       profil.admin = true;
-      mettreAJourProfil();
-      afficherSessions();
-      afficherMessageProfil('Profil enregistré. Mode Administrateur activé.');
+      terminerSauvegardeProfil();
     } catch (error) {
       motDePasseAdminEnMemoire = '';
       profil.admin = false;

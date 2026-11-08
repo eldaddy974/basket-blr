@@ -385,7 +385,7 @@
   function ouvrirProfil() {
     mettreAJourProfil();
     document.getElementById('profil-mot-de-passe').value = '';
-    document.getElementById('profil-mot-de-passe').type = 'password';
+    document.getElementById('profil-mot-de-passe').type = 'text';
     document.getElementById('profil-message').classList.add('hidden');
     document.getElementById('modal-profil').classList.remove('hidden');
   }
@@ -401,6 +401,8 @@
   }
 
   function afficherZoneMotDePasse() {
+    const champMotDePasse = document.getElementById('profil-mot-de-passe');
+    champMotDePasse.type = 'text';
     const afficher = document.getElementById('profil-admin').checked && !profil.admin;
     document.getElementById('zone-mot-de-passe').classList.toggle('hidden', !afficher);
   }

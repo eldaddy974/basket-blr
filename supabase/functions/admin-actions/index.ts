@@ -32,6 +32,145 @@ function obtenirCleSecrete(): string | null {
   }
 }
 
+
+async function demanderJetonHelloAsso(clientId: string, clientSecret: string, refreshToken?: string) {
+  const formulaire = new URLSearchParams();
+  if (refreshToken) {
+    formulaire.set("grant_type", "refresh_token");
+    formulaire.set("refresh_token", refreshToken);
+  } else {
+    formulaire.set("grant_type", "client_credentials");
+    formulaire.set("client_id", clientId);
+    formulaire.set("client_secret", clientSecret);
+  }
+
+  const response = await fetch("https://api.helloasso.com/oauth2/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: formulaire.toString(),
+  });
+  const resultat = await response.json().catch(() => ({}));
+  if (!response.ok || typeof resultat.access_token !== "string" || typeof resultat.refresh_token !== "string") {
+    throw new Error("Authentification HelloAsso impossible (HTTP " + response.status + "). Vérifie les clés API et leurs droits.");
+  }
+  return resultat;
+}
+
+async function obtenirJetonHelloAsso(supabaseAdmin: ReturnType<typeof createClient>) {
+  const clientId = Deno.env.get("HELLOASSO_CLIENT_ID");
+  const clientSecret = Deno.env.get("HELLOASSO_CLIENT_SECRET");
+  if (!clientId || !clientSecret) {
+    throw new Error("Les secrets HELLOASSO_CLIENT_ID et HELLOASSO_CLIENT_SECRET sont requis dans Supabase.");
+  }
+
+  const { data: etat, error: lectureErreur } = await supabaseAdmin
+    .from("helloasso_oauth_state")
+    .select("access_token,refresh_token,access_token_expires_at")
+    .eq("id", "main")
+    .maybeSingle();
+  if (lectureErreur) throw new Error("Impossible de lire l’état OAuth HelloAsso.");
+  const expiration = etat?.access_token_expires_at ? Date.parse(etat.access_token_expires_at) : 0;
+  if (etat?.access_token && expiration > Date.now() + 120000) return etat.access_token;
+
+  let jeton;
+  if (etat?.refresh_token) {
+    const form = new URLSearchParams();
+    form.set("grant_type", "refresh_token");
+    form.set("refresh_token", etat.refresh_token);
+    let response = await fetch("https://api.helloasso.com/oauth2/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: form.toString(),
+    });
+    let resultat = await response.json().catch(() => ({}));
+    if ((!response.ok || typeof resultat.access_token !== "string") && (response.status === 400 || response.status === 401)) {
+      jeton = await demanderJetonHelloAsso(clientId, clientSecret);
+    } else {
+      if (!response.ok || typeof resultat.access_token !== "string" || typeof resultat.refresh_token !== "string") {
+        throw new Error("Renouvellement du jeton HelloAsso impossible (HTTP " + response.status + ").");
+      }
+      jeton = resultat;
+    }
+  } else {
+    jeton = await demanderJetonHelloAsso(clientId, clientSecret);
+  }
+
+  const expiresIn = Math.max(60, Number(jeton.expires_in) || 1799);
+  const { error: sauvegardeErreur } = await supabaseAdmin
+    .from("helloasso_oauth_state")
+    .upsert({
+      id: "main",
+      access_token: jeton.access_token,
+      refresh_token: jeton.refresh_token,
+      access_token_expires_at: new Date(Date.now() + expiresIn * 1000).toISOString(),
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "id" });
+  if (sauvegardeErreur) throw new Error("Impossible d’enregistrer le renouvellement sécurisé du jeton HelloAsso.");
+  return jeton.access_token as string;
+}
+
+async function chargerAdherentsHelloAsso(supabaseAdmin: ReturnType<typeof createClient>) {
+  const jeton = await obtenirJetonHelloAsso(supabaseAdmin);
+  const organisation = "basket-loisir-reunion";
+  const formulaire = "adhesion-blr-jusqu-a-fin-juillet-27";
+  const membres = new Map<string, { prenom: string; nom: string }>();
+  const pageSize = 100;
+
+  for (let pageIndex = 1; pageIndex <= 100; pageIndex++) {
+    const url = "https://api.helloasso.com/v5/organizations/" + encodeURIComponent(organisation) +
+      "/forms/Membership/" + encodeURIComponent(formulaire) + "/orders?pageIndex=" + pageIndex +
+      "&pageSize=" + pageSize + "&withDetails=true&sortOrder=Asc";
+    const response = await fetch(url, {
+      headers: { Authorization: "Bearer " + jeton, Accept: "application/json" },
+    });
+    const resultat = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error("Lecture du formulaire HelloAsso impossible (HTTP " + response.status + ").");
+    }
+
+    const commandes = Array.isArray(resultat.data) ? resultat.data : [];
+    for (const commande of commandes) {
+      const items = Array.isArray(commande.items) ? commande.items : [];
+      const paiementsCommande = Array.isArray(commande.payments) ? commande.payments : [];
+      for (let index = 0; index < items.length; index++) {
+        const item = items[index] || {};
+        const type = String(item.type || "").toLowerCase();
+        if (type && type !== "membership") continue;
+
+        const paiementsItem = Array.isArray(item.payments) ? item.payments : [];
+        const paiements = [...paiementsCommande, ...paiementsItem];
+        const etatsPaiement = paiements.map((p: any) => String(p?.state || "").toLowerCase()).filter(Boolean);
+        const etatItem = String(item.state || "").toLowerCase();
+        const etatCommande = String(commande.state || "").toLowerCase();
+        const etatsValides = ["authorized", "registered"];
+        const etatsRefuses = ["refused", "refunded", "refunding", "contested", "canceled", "cancelled", "deleted", "abandoned"];
+        const paiementConfirme = etatsPaiement.some((state: string) => etatsValides.includes(state))
+          && !etatsPaiement.some((state: string) => etatsRefuses.includes(state));
+        const itemConfirme = ["processed", "registered"].includes(etatItem);
+        const commandeConfirmee = ["processed", "registered"].includes(etatCommande);
+        const paiementVerifiable = etatsPaiement.length > 0;
+        if (paiementVerifiable ? !paiementConfirme : !(itemConfirme || commandeConfirmee)) continue;
+
+        const utilisateur = item.user || item.beneficiary || {};
+        const payeur = commande.payer || {};
+        const prenom = String(utilisateur.firstName || item.firstName || payeur.firstName || "").trim();
+        const nom = String(utilisateur.lastName || item.lastName || payeur.lastName || "").trim();
+        if (!prenom && !nom) continue;
+
+        const identifiant = String(item.id || (String(commande.id || "order") + "-" + index));
+        membres.set(identifiant, { prenom, nom });
+      }
+    }
+    if (commandes.length < pageSize) break;
+  }
+
+  const liste = [...membres.values()].sort((a, b) =>
+    a.nom.localeCompare(b.nom, "fr", { sensitivity: "base" }) ||
+    a.prenom.localeCompare(b.prenom, "fr", { sensitivity: "base" })
+  );
+  return liste;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -75,6 +214,16 @@ Deno.serve(async (req: Request) => {
         persistSession: false,
       },
     });
+
+    if (action === "get_helloasso_members") {
+      try {
+        const membres = await chargerAdherentsHelloAsso(supabaseAdmin);
+        return reponseJson({ authorized: true, members: membres, count: membres.length }, 200);
+      } catch (error) {
+        console.error("Erreur de récupération de la liste HelloAsso :", error instanceof Error ? error.message : "erreur inconnue");
+        return reponseJson({ error: error instanceof Error ? error.message : "Impossible de récupérer la liste HelloAsso." }, 502);
+      }
+    }
 
     if (action === "get_session_stats") {
       const sessionId = body?.sessionId;

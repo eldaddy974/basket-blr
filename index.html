@@ -164,7 +164,7 @@
           <button id="admin-membres-actualiser" onclick="chargerMembresHelloAsso()" class="shrink-0 rounded-lg bg-blue-700 px-3 py-2 text-xs font-bold text-white">Actualiser</button>
         </div>
         <p id="admin-membres-etat" class="mt-2 text-xs text-slate-300">Chargement de la liste HelloAsso…</p>
-        <div id="admin-membres-liste" class="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5"></div>
+        <div id="admin-membres-liste" class="mt-2 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-1"></div>
       </section>
       <section class="mt-4"><h3 class="font-extrabold text-sm">Votes de la semaine — annulations</h3><div id="admin-votes-etat" class="mt-1 text-xs text-slate-300">Chargement des votes…</div><div id="admin-votes-listes" class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3"></div></section>
       <section class="mt-4"><h3 class="font-extrabold text-sm">Gestion des créneaux</h3><div id="admin-creneaux-actions" class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3"></div></section>
@@ -874,7 +874,7 @@
       const membres = Array.isArray(resultat.members) ? resultat.members : [];
       membres.sort((a,b) => String(a.nom || '').localeCompare(String(b.nom || ''), 'fr', { sensitivity: 'base' }) || String(a.prenom || '').localeCompare(String(b.prenom || ''), 'fr', { sensitivity: 'base' }));
       etat.textContent = membres.length ? membres.length + (membres.length > 1 ? ' adhérents à jour' : ' adhérent à jour') : 'Aucune adhésion payée trouvée pour ce formulaire.';
-      liste.innerHTML = membres.map(membre => '<div class="rounded-md border border-slate-600 bg-slate-700/70 px-2 py-1.5 text-xs font-semibold">' + echapper([membre.nom, membre.prenom].filter(Boolean).join(' ')) + '</div>').join('');
+      liste.innerHTML = membres.map(membre => '<div class="flex min-h-8 items-center break-words rounded-md border border-slate-600 bg-slate-700/70 px-2 py-1 text-[11px] leading-tight font-semibold sm:text-xs">' + echapper([membre.nom, membre.prenom].filter(Boolean).join(' ')) + '</div>').join('');
     } catch (error) {
       etat.textContent = 'Liste HelloAsso indisponible : ' + (error.message || error);
     } finally {

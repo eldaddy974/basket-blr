@@ -101,6 +101,29 @@ Deno.serve(async (req: Request) => {
       }
       return reponseJson({ authorized: true, sessionId, session, activeCount: actifs.length, events: lignes, generatedAt: new Date().toISOString() }, 200);
     }
+    if (action === "get_all_admin_stats") {
+      const sessionIds = ["session-mardi", "session-jeudi"];
+      const [{ data: events, error: eventsError }, { data: activeVotes, error: votesError }, { data: sessions, error: sessionsError }] = await Promise.all([
+        supabaseAdmin.from("inscription_evenements").select("*").in("session_id", sessionIds).order("created_at", { ascending: true }),
+        supabaseAdmin.from("inscriptions").select("id,session_id,prenom,nom,est_invite,invite_par_nom,est_abonne,statut,date_demande").in("session_id", sessionIds).order("date_demande", { ascending: true }),
+        supabaseAdmin.from("sessions").select("id,nom,debut_date,horaires,statut").in("id", sessionIds),
+      ]);
+      if (eventsError) throw eventsError;
+      if (votesError) throw votesError;
+      if (sessionsError) throw sessionsError;
+
+      const actifs = activeVotes || [];
+      const actifsParId = new Set(actifs.map(vote => String(vote.id)));
+      const sessionParId = new Map((sessions || []).map(session => [session.id, session]));
+      const lignes = [...(events || [])].map(event => ({ ...event, actif: event.type_evenement === "vote" && actifsParId.has(String(event.inscription_id)), ancien_enregistrement: false }));
+      const votesJournalises = new Set(lignes.filter(event => event.type_evenement === "vote").map(event => String(event.inscription_id)));
+      for (const vote of actifs) {
+        if (votesJournalises.has(String(vote.id))) continue;
+        const session = sessionParId.get(vote.session_id);
+        lignes.push({ inscription_id: vote.id, session_id: vote.session_id, session_nom: session?.nom || null, session_debut_date: session?.debut_date || null, session_horaires: session?.horaires || null, prenom: vote.prenom, nom: vote.nom, est_invite: vote.est_invite === true, invite_par_nom: vote.invite_par_nom || null, est_abonne: vote.est_abonne === true, type_evenement: "vote", statut: vote.statut, date_demande: vote.date_demande, created_at: null, acteur: vote.est_invite ? (vote.invite_par_nom || null) : `${vote.prenom} ${vote.nom}`, actif: true, ancien_enregistrement: true });
+      }
+      return reponseJson({ authorized: true, activeCount: actifs.length, activeVotes: actifs, events: lignes, sessions: sessions || [], generatedAt: new Date().toISOString() }, 200);
+    }
     if (action === "set_session_status") {
       const sessionId = body?.sessionId;
       const statut = body?.statut;

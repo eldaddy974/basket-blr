@@ -922,6 +922,26 @@
     }
   }
 
+  async function confirmerVoteAdmin(voteId) {
+    if (!profil.admin || !motDePasseAdminEnMemoire) {
+      return alert('Le mode Administrateur a expiré. Rouvre Profil et reconnecte-toi.');
+    }
+    const vote = inscriptions.find(item => String(item.id) === String(voteId));
+    if (!vote) return alert('Vote introuvable. Actualise la liste admin puis réessaie.');
+    if (vote.statut !== 'waitlisted') return alert('Ce vote n’est plus en attente. Actualise la liste admin.');
+
+    if (!confirm('Confirmer une place pour ' + vote.prenom + ' ' + vote.nom + ' ? Une place disponible est nécessaire.')) return;
+    try {
+      await appelerFonctionAdmin('confirm_vote', { voteId });
+      await rechargerInscriptions();
+      const panneauAdmin = document.getElementById('modal-gestion-admin');
+      if (panneauAdmin && !panneauAdmin.classList.contains('hidden')) await chargerDonneesGestionAdmin();
+      alert('Place confirmée pour ' + vote.prenom + ' ' + vote.nom + '.');
+    } catch (error) {
+      alert('Impossible de confirmer la place : ' + (error.message || error));
+    }
+  }
+
   function afficherVotesAdmin(resultat) {
     const zone = document.getElementById('admin-votes-listes');
     const creneaux = sessionsDuCycle().filter(session => ['session-mardi','session-jeudi'].includes(session.id));
@@ -929,7 +949,11 @@
       const inscrits = (resultat.activeVotes || []).filter(vote => vote.session_id === session.id);
       const confirmes = inscrits.filter(vote => vote.statut === 'confirmed');
       const attente = inscrits.filter(vote => vote.statut === 'waitlisted').sort((a,b)=>Number(a.date_demande||0)-Number(b.date_demande||0));
-      const ligne = (vote,index,enAttente) => '<div class="flex items-center justify-between gap-2 rounded-lg border ' + (enAttente ? 'border-amber-800 bg-amber-950/50' : 'border-slate-600 bg-slate-700/70') + ' p-2"><div class="min-w-0"><p class="text-xs font-bold">' + (index+1) + '. ' + echapper(vote.prenom) + ' ' + echapper(vote.nom) + (vote.est_invite ? ' <span class="font-normal text-slate-300">(invité par ' + echapper(vote.invite_par_nom || '') + ')</span>' : '') + '</p><p class="text-[10px] text-slate-300">' + (enAttente ? 'En attente' : 'Confirmé') + ' · ' + echapper(formatHorodatage(vote.date_demande)) + '</p></div><button onclick="annulerInscription(\'' + echapper(vote.id) + '\')" class="shrink-0 rounded-lg bg-red-900 px-2 py-1.5 text-[10px] font-bold text-red-100">Annuler</button></div>';
+      const ligne = (vote,index,enAttente) => {
+        const confirmer = enAttente ? '<button onclick="confirmerVoteAdmin(&quot;' + echapper(vote.id) + '&quot;)" class="rounded-lg bg-blue-700 px-2 py-1.5 text-[10px] font-bold text-white">Confirmer</button>' : '';
+        const annuler = '<button onclick="annulerInscription(&quot;' + echapper(vote.id) + '&quot;)" class="rounded-lg bg-red-900 px-2 py-1.5 text-[10px] font-bold text-red-100">Annuler</button>';
+        return '<div class="flex items-center justify-between gap-2 rounded-lg border ' + (enAttente ? 'border-amber-800 bg-amber-950/50' : 'border-slate-600 bg-slate-700/70') + ' p-2"><div class="min-w-0"><p class="text-xs font-bold">' + (index+1) + '. ' + echapper(vote.prenom) + ' ' + echapper(vote.nom) + (vote.est_invite ? ' <span class="font-normal text-slate-300">(invité par ' + echapper(vote.invite_par_nom || '') + ')</span>' : '') + '</p><p class="text-[10px] text-slate-300">' + (enAttente ? 'En attente' : 'Confirmé') + ' · ' + echapper(formatHorodatage(vote.date_demande)) + '</p></div><div class="flex shrink-0 flex-col gap-1">' + confirmer + annuler + '</div></div>';
+      };
       const liste = (items,titre,enAttente) => '<section class="mt-2"><h5 class="mb-1 text-[10px] font-extrabold uppercase text-slate-300">' + titre + ' (' + items.length + ')</h5>' + (items.length ? items.map((vote,index)=>ligne(vote,index,enAttente)).join('') : '<p class="text-[10px] italic text-slate-400">Aucun</p>') + '</section>';
       return '<article class="rounded-xl border border-slate-600 bg-slate-900/60 p-3"><h4 class="font-bold text-sm">' + echapper(libelleSession(session)) + '</h4>' + liste(confirmes,'Confirmés',false) + liste(attente,'Attente',true) + '</article>';
     }).join('') || '<p class="text-xs text-slate-400">Aucun vote cette semaine.</p>';

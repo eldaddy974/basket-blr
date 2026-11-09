@@ -625,10 +625,11 @@
         </button>`).join('');
 
       const numero = String(session.nom || '').match(/Session\s*(\d+)/i)?.[1] || '1';
+      const bordureVote = session.id === 'session-mardi' ? 'border-blue-500' : 'border-orange-500';
       const carte = document.createElement('section');
       carte.className = annulee
-        ? 'bg-slate-700 rounded-2xl p-4 shadow-sm border border-slate-400 opacity-75'
-        : 'bg-slate-800 rounded-2xl p-4 shadow-sm border border-slate-700';
+        ? `bg-slate-700 rounded-2xl p-4 shadow-sm border-2 border-dashed ${bordureVote} opacity-75`
+        : `bg-slate-800 rounded-2xl p-4 shadow-sm border-2 border-dashed ${bordureVote}`;
 
       carte.innerHTML = `
         <div class="flex justify-between items-start mb-3">

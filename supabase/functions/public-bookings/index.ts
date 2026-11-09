@@ -54,19 +54,20 @@ async function recalculerPlaces(supabase, sessionId) {
   const capacite = Number(session.max_capacity) || 22;
   const { data, error } = await supabase
     .from("inscriptions")
-    .select("id,est_abonne,date_demande,statut")
+    .select("id,est_abonne,admin_force_confirm,date_demande,statut")
     .eq("session_id", sessionId)
     .order("date_demande", { ascending: true });
   if (error) throw error;
 
   const classees = [...(data || [])].sort((a, b) => {
-    const priorite = Number(b.est_abonne === true) - Number(a.est_abonne === true);
-    return priorite || Number(a.date_demande || 0) - Number(b.date_demande || 0);
+    const prioriteAdmin = Number(b.admin_force_confirm === true) - Number(a.admin_force_confirm === true);
+    const prioriteAdhesion = Number(b.est_abonne === true) - Number(a.est_abonne === true);
+    return prioriteAdmin || prioriteAdhesion || Number(a.date_demande || 0) - Number(b.date_demande || 0);
   });
   let nombrePlacesAttribuees = 0;
   const statuts = new Map();
   for (const inscription of classees) {
-    const admissible = inscription.est_abonne === true || !avantH24;
+    const admissible = inscription.admin_force_confirm === true || inscription.est_abonne === true || !avantH24;
     const statut = admissible && nombrePlacesAttribuees < capacite ? "confirmed" : "waitlisted";
     if (statut === "confirmed") nombrePlacesAttribuees++;
     statuts.set(inscription.id, statut);

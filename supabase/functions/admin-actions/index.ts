@@ -314,6 +314,54 @@ Deno.serve(async (req: Request) => {
       }
       return reponseJson({ authorized: true, activeCount: actifs.length, activeVotes: actifs, events: lignes, sessions: sessions || [], generatedAt: new Date().toISOString() }, 200);
     }
+    if (action === "confirm_vote") {
+      const voteId = String(body?.voteId || "");
+      if (!voteId) return reponseJson({ error: "Vote introuvable." }, 400);
+
+      const { data: vote, error: voteError } = await supabaseAdmin
+        .from("inscriptions")
+        .select("id,session_id,statut")
+        .eq("id", voteId)
+        .maybeSingle();
+      if (voteError) throw voteError;
+      if (!vote) return reponseJson({ error: "Vote introuvable ou déjà annulé." }, 404);
+      if (vote.statut === "confirmed") return reponseJson({ authorized: true, alreadyConfirmed: true }, 200);
+      if (vote.statut !== "waitlisted") return reponseJson({ error: "Seul un vote en attente peut être confirmé." }, 409);
+
+      const { data: session, error: sessionError } = await supabaseAdmin
+        .from("sessions")
+        .select("debut_date,max_capacity,statut")
+        .eq("id", vote.session_id)
+        .maybeSingle();
+      if (sessionError) throw sessionError;
+      if (!session || session.statut === "annulee") return reponseJson({ error: "Créneau introuvable ou annulé." }, 409);
+      if (new Date(session.debut_date).getTime() <= Date.now()) {
+        return reponseJson({ error: "Ce créneau a déjà commencé." }, 409);
+      }
+
+      const { data: confirmes, error: confirmesError } = await supabaseAdmin
+        .from("inscriptions")
+        .select("id")
+        .eq("session_id", vote.session_id)
+        .eq("statut", "confirmed");
+      if (confirmesError) throw confirmesError;
+      const capacite = Number(session.max_capacity) || 22;
+      if ((confirmes || []).length >= capacite) {
+        return reponseJson({ error: "Le créneau est complet. Annule d’abord un vote confirmé pour libérer une place." }, 409);
+      }
+
+      const { data: voteConfirme, error: confirmationError } = await supabaseAdmin
+        .from("inscriptions")
+        .update({ admin_force_confirm: true, statut: "confirmed" })
+        .eq("id", voteId)
+        .eq("statut", "waitlisted")
+        .select("id,statut")
+        .maybeSingle();
+      if (confirmationError) throw confirmationError;
+      if (!voteConfirme) return reponseJson({ error: "Le vote a changé entre-temps. Actualise la liste et réessaie." }, 409);
+      return reponseJson({ authorized: true, vote: voteConfirme }, 200);
+    }
+
     if (action === "set_session_status") {
       const sessionId = body?.sessionId;
       const statut = body?.statut;

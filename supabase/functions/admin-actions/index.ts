@@ -362,6 +362,85 @@ Deno.serve(async (req: Request) => {
       return reponseJson({ authorized: true, vote: voteConfirme }, 200);
     }
 
+    if (action === "set_no_show") {
+      const voteId = String(body?.voteId || "");
+      const absent = body?.absent;
+      if (!voteId || typeof absent !== "boolean") {
+        return reponseJson({ error: "Vote ou action de signalement invalide." }, 400);
+      }
+
+      const { data: vote, error: voteError } = await supabaseAdmin
+        .from("inscriptions")
+        .select("id,session_id,prenom,nom,est_invite,invite_par_nom,est_abonne,statut,date_demande")
+        .eq("id", voteId)
+        .maybeSingle();
+      if (voteError) throw voteError;
+      if (!vote) return reponseJson({ error: "Vote introuvable ou déjà remis à zéro." }, 404);
+      if (vote.statut !== "confirmed") {
+        return reponseJson({ error: "Seul un joueur confirmé peut être signalé absent." }, 409);
+      }
+
+      const { data: session, error: sessionError } = await supabaseAdmin
+        .from("sessions")
+        .select("nom,debut_date,horaires,statut")
+        .eq("id", vote.session_id)
+        .maybeSingle();
+      if (sessionError) throw sessionError;
+      if (!session || session.statut === "annulee") {
+        return reponseJson({ error: "Créneau introuvable ou annulé." }, 409);
+      }
+
+      const debutMs = new Date(session.debut_date).getTime();
+      if (!Number.isFinite(debutMs)) return reponseJson({ error: "Date de créneau invalide." }, 400);
+      const horaire = String(session.horaires || "").match(/(\d{1,2})h(\d{2})\s*-\s*(\d{1,2})h(\d{2})/i);
+      let dureeMinutes = 150;
+      if (horaire) {
+        const debutMinutes = Number(horaire[1]) * 60 + Number(horaire[2]);
+        const finMinutes = Number(horaire[3]) * 60 + Number(horaire[4]);
+        dureeMinutes = (finMinutes - debutMinutes + 1440) % 1440 || 1440;
+      }
+      if (Date.now() < debutMs + dureeMinutes * 60000) {
+        return reponseJson({ error: "Tu peux signaler une absence après l’heure de fin prévue du créneau." }, 409);
+      }
+
+      const { data: dernierSignalement, error: historiqueErreur } = await supabaseAdmin
+        .from("inscription_evenements")
+        .select("type_evenement")
+        .eq("inscription_id", voteId)
+        .in("type_evenement", ["absence", "annulation_absence"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (historiqueErreur) throw historiqueErreur;
+      const absentActuellement = dernierSignalement?.type_evenement === "absence";
+      if (absentActuellement === absent) {
+        return reponseJson({ authorized: true, alreadySet: true, absent }, 200);
+      }
+
+      const { data: evenement, error: evenementErreur } = await supabaseAdmin
+        .from("inscription_evenements")
+        .insert({
+          inscription_id: vote.id,
+          session_id: vote.session_id,
+          session_nom: session.nom || null,
+          session_debut_date: session.debut_date,
+          session_horaires: session.horaires || null,
+          prenom: vote.prenom,
+          nom: vote.nom,
+          est_invite: vote.est_invite === true,
+          invite_par_nom: vote.invite_par_nom || null,
+          est_abonne: vote.est_abonne === true,
+          type_evenement: absent ? "absence" : "annulation_absence",
+          statut: vote.statut,
+          date_demande: vote.date_demande || null,
+          acteur: String(body?.acteur || "Administrateur").trim().slice(0, 160) || "Administrateur",
+        })
+        .select("id,type_evenement,created_at")
+        .single();
+      if (evenementErreur) throw evenementErreur;
+      return reponseJson({ authorized: true, event: evenement, absent }, 200);
+    }
+
     if (action === "set_session_status") {
       const sessionId = body?.sessionId;
       const statut = body?.statut;

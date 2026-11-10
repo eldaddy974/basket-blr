@@ -978,7 +978,9 @@
   function horodatageEvenementStats(event) {
     const cree = Date.parse(event?.created_at || '');
     if (Number.isFinite(cree)) return cree;
-    const demande = Number(event?.date_demande);
+    const texte = String(event?.date_demande || '').trim();
+    if (/^\d+$/.test(texte)) return Number(texte);
+    const demande = Date.parse(texte);
     return Number.isFinite(demande) ? demande : NaN;
   }
 
@@ -1240,7 +1242,7 @@
     const datesSessions = new Map((resultat.sessions || []).map(session => [session.id, dateLocale(session.debut_date)]));
     const lignes = [];
     for (const vote of resultat.activeVotes || []) {
-      const voteMs = Number(vote.date_demande);
+      const voteMs = horodatageEvenementStats(vote);
       if (!Number.isFinite(voteMs) || voteMs < DATE_LANCEMENT_STATS_MS) continue;
       if (!['confirmed','waitlisted'].includes(vote.statut) || !['session-mardi','session-jeudi'].includes(vote.session_id)) continue;
       lignes.push({ session_id: vote.session_id, nom: vote.nom, prenom: vote.prenom, votes_confirmes: vote.statut === 'confirmed' ? 1 : 0, annulations: 0 });

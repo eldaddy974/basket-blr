@@ -31,7 +31,7 @@ const jourLocal = new Date(Date.UTC(+maintenantLocal.year, +maintenantLocal.mont
 const jourSemaine = jourLocal.getUTCDay();
 const lundi = new Date(jourLocal);
 lundi.setUTCDate(lundi.getUTCDate() - ((jourSemaine + 6) % 7)
-  + ((jourSemaine === 5 && +maintenantLocal.hour >= 6) || jourSemaine === 6 || jourSemaine === 0 ? 7 : 0));
+  + ((jourSemaine === 5 && +maintenantLocal.hour >= 12) || jourSemaine === 6 || jourSemaine === 0 ? 7 : 0));
 const vendredi = new Date(lundi);
 vendredi.setUTCDate(vendredi.getUTCDate() + 4);
 const dateCle = date => {
@@ -77,7 +77,7 @@ const card = session => {
 };
 const reportDate = dateFmt.format(new Date());
 const reportTime = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Indian/Reunion', hour: '2-digit', minute: '2-digit' }).format(new Date());
-const html = `<!doctype html><html lang="fr"><meta charset="utf-8"><style>*{box-sizing:border-box}body{margin:0 auto;background:#131330;color:#f5f6ff;font:16px Arial,sans-serif;padding:14px;max-width:680px}h1{margin:0 0 5px;color:#fff;font-size:20px}.stamp{color:#b7c4e4;margin-bottom:16px}section{background:#1e293b;border:2px solid #394567;border-radius:14px;padding:8px;margin:0;overflow:hidden}.sessions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}.session.tuesday{border-color:#3977ed}.session.thursday{border-color:#d99b37}.session.tuesday h2{color:#a9c7ff}.session.thursday h2{color:#ffd18a}section header{border-bottom:1px solid #414c77;padding-bottom:9px;margin-bottom:9px}h2{display:inline-block;margin:0 10px 3px 0;font-size:12px;line-height:1.25}.count{color:#9ce4ba}header p{margin:4px 0 0;color:#bdc9e4;font-size:13px}h3{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#bdc9e4;margin:11px 0 5px}.people{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}.person{display:block;min-width:0;background:#334155;border:1px solid #475569;border-radius:7px;padding:4px 6px;margin:0;color:#fff;font-size:10px;line-height:1.25}.person.waiting{background:#302c42;border-color:#8c7839}.person span{color:#bec9e5}.person small{display:block;margin:2px 0 0;color:#b2bfdc;font-size:9px;white-space:normal}.empty,.limit{color:#aab6d4;font-size:12px;font-style:italic}</style><h1>Récapitulatif des inscriptions</h1><div class="stamp">Confirmés et file d’attente des créneaux de la semaine<br>Actualisé à ${escapeHtml(reportTime)} · remise à zéro vendredi à 06:00</div><main class="sessions">${upcoming.map(card).join('')}</main></html>`;
+const html = `<!doctype html><html lang="fr"><meta charset="utf-8"><style>*{box-sizing:border-box}body{margin:0 auto;background:#131330;color:#f5f6ff;font:16px Arial,sans-serif;padding:14px;max-width:680px}h1{margin:0 0 5px;color:#fff;font-size:20px}.stamp{color:#b7c4e4;margin-bottom:16px}section{background:#1e293b;border:2px solid #394567;border-radius:14px;padding:8px;margin:0;overflow:hidden}.sessions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}.session.tuesday{border-color:#3977ed}.session.thursday{border-color:#d99b37}.session.tuesday h2{color:#a9c7ff}.session.thursday h2{color:#ffd18a}section header{border-bottom:1px solid #414c77;padding-bottom:9px;margin-bottom:9px}h2{display:inline-block;margin:0 10px 3px 0;font-size:12px;line-height:1.25}.count{color:#9ce4ba}header p{margin:4px 0 0;color:#bdc9e4;font-size:13px}h3{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#bdc9e4;margin:11px 0 5px}.people{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}.person{display:block;min-width:0;background:#334155;border:1px solid #475569;border-radius:7px;padding:4px 6px;margin:0;color:#fff;font-size:10px;line-height:1.25}.person.waiting{background:#302c42;border-color:#8c7839}.person span{color:#bec9e5}.person small{display:block;margin:2px 0 0;color:#b2bfdc;font-size:9px;white-space:normal}.empty,.limit{color:#aab6d4;font-size:12px;font-style:italic}</style><h1>Récapitulatif des inscriptions</h1><div class="stamp">Confirmés et file d’attente des créneaux de la semaine<br>Actualisé à ${escapeHtml(reportTime)} · remise à zéro vendredi à 12:00</div><main class="sessions">${upcoming.map(card).join('')}</main></html>`;
 
 const browser = await chromium.launch({ headless: true });
 try {
@@ -89,7 +89,7 @@ try {
     from: `Basket BLR <${gmailUser}>`, to,
     subject: `Basket BLR — listes des ${upcoming.length} créneaux de la semaine`,
     text: `Bonjour,\n\nVoici la capture des listes détaillées des créneaux de la semaine. Rapport généré le ${reportDate}.`,
-    html: `<p>Bonjour,</p><p>Voici les listes détaillées des prochains créneaux en pièce jointe.</p><p>Rapport généré le ${escapeHtml(reportDate)}.</p>`,
+    html: `<p>Bonjour,</p><p>Voici les listes détaillées des créneaux de basket de cette semaine en pièce jointe.</p><p>Rapport généré le ${escapeHtml(reportDate)}.</p>`,
     attachments: [{ filename: 'listes-basket-blr.png', content: image, contentType: 'image/png' }],
   });
 } finally {

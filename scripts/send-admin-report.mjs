@@ -92,7 +92,7 @@ try {
     from: `Basket BLR <${gmailUser}>`, to,
     subject: `Basket BLR — listes des ${upcoming.length} créneaux de la semaine`,
     text: `Bonjour,\n\nVoici la capture des listes détaillées des créneaux de la semaine. Rapport généré le ${reportDate}.`,
-    html: `<p>Bonjour,</p><p>Voici les listes détaillées des créneaux de basket de cette semaine en pièce jointe.</p><p>Rapport généré le ${escapeHtml(reportDate)}.</p>`,
+    html: `<p>Bonjour,</p><p>Voici les listes détaillées des prochains créneaux en pièce jointe.</p><p>Rapport généré le ${escapeHtml(reportDate)}.</p>`,
     attachments: [{ filename: 'listes-basket-blr.png', content: image, contentType: 'image/png' }],
   });
 } finally {

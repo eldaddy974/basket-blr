@@ -202,7 +202,7 @@
         <div id="admin-stats-global" class="mt-2 space-y-2"></div>
         <h4 class="mt-4 font-bold text-xs">Bilan par joueur · ordre alphabétique</h4>
         <div id="admin-stats-joueurs" class="mt-2"></div>
-        <p class="mt-3 text-[11px] leading-relaxed text-slate-400">Le relevé des votes est capturé chaque vendredi à 9 h 50 (heure de La Réunion), avant l’envoi du récapitulatif prévu vers 10 h 05 et la remise à zéro à midi. Les confirmations sont des réservations, pas un pointage de présence ; les absences sont signalées manuellement par un admin après le créneau. Le cumul commence au premier relevé automatique. Les invités sont comptés sous le nom renseigné.</p>
+        <p class="mt-3 text-[11px] leading-relaxed text-slate-400">Les statistiques commencent le dimanche 8 novembre 2026 à 18 h (heure de La Réunion) ; les votes de test antérieurs sont exclus. Le relevé est capturé chaque vendredi à 9 h 50 avant la remise à zéro de midi. Les confirmations sont des réservations, pas un pointage de présence ; les absences sont signalées manuellement par un admin après le créneau. Les invités sont comptés sous le nom renseigné.</p>
         <button id="admin-stats-export" onclick="exporterStatsXLSX()" disabled class="w-full mt-3 bg-blue-600 disabled:bg-slate-700 disabled:text-slate-400 text-white font-bold py-3 rounded-xl text-sm">Télécharger le classeur pour Google Sheets (.xlsx)</button>
         <p class="mt-1 text-[10px] text-slate-400">Deux onglets : Créneaux (totaux et moyennes) et Joueurs. Compatible avec l’application Google Sheets.</p>
       </section>
@@ -213,6 +213,7 @@
   const SUPABASE_ANON_KEY = 'sb_publishable_5MB-vD9ZvTa_gfHsitfOng__XVP5PL5';
   const ADMIN_FUNCTION_NAME = 'admin-actions';
   const PUBLIC_BOOKINGS_FUNCTION = 'public-bookings';
+  const DATE_LANCEMENT_STATS_MS = Date.parse('2026-11-08T18:00:00+04:00');
 
   const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -905,7 +906,7 @@
       afficherVotesAdmin(resultat);
       afficherStatsSaisonAdmin(resultat);
       messageVotes.textContent = 'Votes confirmés et en attente des créneaux actuels.';
-      messageStats.textContent = resultat.seasonPlayerStats?.length ? ('Saison ' + resultat.season + ' · cumul mis à jour chaque jeudi à 23 h.') : ('Saison ' + resultat.season + ' · premier relevé automatique jeudi à 23 h.');
+      messageStats.textContent = 'Statistiques comptabilisées depuis le dim. 8 nov. à 18 h · relevé chaque vendredi à 9 h 50 (heure de La Réunion).';
       document.getElementById('admin-stats-export').disabled = false;
     } catch (error) {
       messageVotes.textContent = 'Impossible de charger les votes : ' + (error.message || error);
@@ -974,6 +975,30 @@
     return Date.now() >= debut + dureeMinutes * 60000;
   }
 
+  function horodatageEvenementStats(event) {
+    const cree = Date.parse(event?.created_at || '');
+    if (Number.isFinite(cree)) return cree;
+    const demande = Number(event?.date_demande);
+    return Number.isFinite(demande) ? demande : NaN;
+  }
+
+  function evenementDepuisLancementStats(event) {
+    const horodatage = horodatageEvenementStats(event);
+    return Number.isFinite(horodatage) && horodatage >= DATE_LANCEMENT_STATS_MS;
+  }
+
+  function votesDepuisLancementStats(resultat) {
+    return new Set((resultat?.events || [])
+      .filter(event => event.type_evenement === 'vote' && evenementDepuisLancementStats(event))
+      .map(event => String(event.inscription_id || ''))
+      .filter(Boolean));
+  }
+
+  function captureDepuisLancementStats(ligne) {
+    const horodatage = Date.parse(ligne?.capture_le || '');
+    return Number.isFinite(horodatage) && horodatage >= DATE_LANCEMENT_STATS_MS;
+  }
+
   function calculerAbsencesSaison(resultat) {
     const saisonTrouvee = String(resultat?.season || '').match(/^(\d{4})-\d{4}$/);
     let anneeDebut = saisonTrouvee ? Number(saisonTrouvee[1]) : NaN;
@@ -996,14 +1021,15 @@
       return p.year + '-' + p.month + '-' + p.day;
     };
     const derniers = new Map();
+    const votesComptabilises = votesDepuisLancementStats(resultat);
     for (const event of resultat?.events || []) {
-      if (!['absence','annulation_absence'].includes(event.type_evenement)) continue;
+      if (!['absence','annulation_absence'].includes(event.type_evenement) || !evenementDepuisLancementStats(event)) continue;
       if (!['session-mardi','session-jeudi'].includes(event.session_id)) continue;
       const date = dateLocale(event.session_debut_date);
       if (!date || date < debutSaison || date >= finSaison) continue;
       const id = String(event.inscription_id || '');
-      if (!id) continue;
-      const horodatage = Date.parse(event.created_at || '') || 0;
+      if (!id || !votesComptabilises.has(id)) continue;
+      const horodatage = horodatageEvenementStats(event) || 0;
       const precedent = derniers.get(id);
       if (!precedent || horodatage >= precedent.horodatage) derniers.set(id, { ...event, horodatage });
     }
@@ -1137,7 +1163,7 @@
     const vus = new Set();
     const votes = [];
     for (const event of resultat?.events || []) {
-      if (event.type_evenement !== 'vote' || !['session-mardi','session-jeudi'].includes(event.session_id)) continue;
+      if (event.type_evenement !== 'vote' || !evenementDepuisLancementStats(event) || !['session-mardi','session-jeudi'].includes(event.session_id)) continue;
       const dateSessionLocale = dateLocale(event.session_debut_date);
       if (!dateSessionLocale || dateSessionLocale < debutSaison || dateSessionLocale >= finSaison) continue;
       const voteMs = dateDemandeMs(event.date_demande);
@@ -1214,11 +1240,14 @@
     const datesSessions = new Map((resultat.sessions || []).map(session => [session.id, dateLocale(session.debut_date)]));
     const lignes = [];
     for (const vote of resultat.activeVotes || []) {
+      const voteMs = Number(vote.date_demande);
+      if (!Number.isFinite(voteMs) || voteMs < DATE_LANCEMENT_STATS_MS) continue;
       if (!['confirmed','waitlisted'].includes(vote.statut) || !['session-mardi','session-jeudi'].includes(vote.session_id)) continue;
       lignes.push({ session_id: vote.session_id, nom: vote.nom, prenom: vote.prenom, votes_confirmes: vote.statut === 'confirmed' ? 1 : 0, annulations: 0 });
     }
+    const votesComptabilises = votesDepuisLancementStats(resultat);
     for (const event of resultat.events || []) {
-      if (event.type_evenement !== 'annulation' || !datesSessions.has(event.session_id)) continue;
+      if (event.type_evenement !== 'annulation' || !evenementDepuisLancementStats(event) || !votesComptabilises.has(String(event.inscription_id || '')) || !datesSessions.has(event.session_id)) continue;
       const dateSessionActuelle = datesSessions.get(event.session_id);
       if (!dateSessionActuelle || dateLocale(event.session_debut_date) !== dateSessionActuelle) continue;
       lignes.push({ session_id: event.session_id, nom: event.nom, prenom: event.prenom, votes_confirmes: 0, annulations: 1 });
@@ -1227,13 +1256,14 @@
   }
 
   function calculerStatsGlobalesSaison(resultat) {
-    const officiel = Array.isArray(resultat.seasonSessionStats) && resultat.seasonSessionStats.length > 0;
+    const relevesCreneaux = (resultat.seasonSessionStats || []).filter(captureDepuisLancementStats);
+    const officiel = relevesCreneaux.length > 0;
     const stats = {
       mardi: { seances: 0, confirmes: 0, annulations: 0, absences: 0 },
       jeudi: { seances: 0, confirmes: 0, annulations: 0, absences: 0 }
     };
     if (officiel) {
-      for (const ligne of resultat.seasonSessionStats) {
+      for (const ligne of relevesCreneaux) {
         const jour = ligne.session_id === 'session-mardi' ? 'mardi' : ligne.session_id === 'session-jeudi' ? 'jeudi' : null;
         if (!jour) continue;
         stats[jour].seances += 1;
@@ -1299,9 +1329,10 @@
       ).join('');
     }
     if (!zoneJoueurs) return;
-    const releveOfficiel = Array.isArray(resultat.seasonPlayerStats) && resultat.seasonPlayerStats.length > 0;
+    const lignesJoueursDepuisLancement = (resultat.seasonPlayerStats || []).filter(captureDepuisLancementStats);
+    const releveOfficiel = lignesJoueursDepuisLancement.length > 0;
     const joueurs = calculerStatsSaisonJoueurs(
-      releveOfficiel ? resultat.seasonPlayerStats : apercuStatsVotesActuels(resultat),
+      releveOfficiel ? lignesJoueursDepuisLancement : apercuStatsVotesActuels(resultat),
       absences,
       votesDelai
     );
@@ -1360,8 +1391,10 @@
       alert('Le module de classeur est indisponible. Recharge la page puis réessaie.');
       return;
     }
-    const officiel = Array.isArray(statsAdminData.seasonSessionStats) && statsAdminData.seasonSessionStats.length > 0;
-    const lignesJoueurs = officiel ? statsAdminData.seasonPlayerStats || [] : apercuStatsVotesActuels(statsAdminData);
+    const relevesCreneaux = (statsAdminData.seasonSessionStats || []).filter(captureDepuisLancementStats);
+    const relevesJoueurs = (statsAdminData.seasonPlayerStats || []).filter(captureDepuisLancementStats);
+    const officiel = relevesCreneaux.length > 0;
+    const lignesJoueurs = relevesJoueurs.length ? relevesJoueurs : apercuStatsVotesActuels(statsAdminData);
     const absences = calculerAbsencesSaison(statsAdminData);
     const votesDelai = calculerDelaisVotesSaison(statsAdminData);
     const joueurs = calculerStatsSaisonJoueurs(lignesJoueurs, absences, votesDelai);

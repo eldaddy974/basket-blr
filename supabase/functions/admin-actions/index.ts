@@ -362,6 +362,26 @@ Deno.serve(async (req: Request) => {
       return reponseJson({ authorized: true, vote: voteConfirme }, 200);
     }
 
+    if (action === "correct_vote_name") {
+      const voteId = String(body?.voteId || "");
+      const prenom = String(body?.prenom || "").trim().replace(/\s+/g, " ");
+      const nom = String(body?.nom || "").trim().replace(/\s+/g, " ");
+      if (!voteId || !prenom || !nom) {
+        return reponseJson({ error: "Renseigne le prénom et le nom de famille en entier." }, 400);
+      }
+      const { data: correction, error: correctionError } = await supabaseAdmin.rpc(
+        "admin_correct_inscription_name",
+        { p_vote_id: voteId, p_prenom: prenom, p_nom: nom }
+      );
+      if (correctionError) {
+        if (correctionError.code === "P0002") return reponseJson({ error: "Vote introuvable ou déjà remis à zéro." }, 404);
+        if (correctionError.code === "23505") return reponseJson({ error: "Un joueur porte déjà ce prénom et ce nom sur ce créneau." }, 409);
+        if (correctionError.code === "22023") return reponseJson({ error: "Le prénom et le nom sont obligatoires et limités à 100 caractères chacun." }, 400);
+        throw correctionError;
+      }
+      return reponseJson({ authorized: true, correction }, 200);
+    }
+
     if (action === "set_no_show") {
       const voteId = String(body?.voteId || "");
       const absent = body?.absent;

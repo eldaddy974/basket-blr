@@ -184,7 +184,7 @@
         <div id="admin-stats-global" class="mt-2 space-y-2"></div>
         <h4 class="mt-4 font-bold text-xs">Bilan par joueur · ordre alphabétique</h4>
         <div id="admin-stats-joueurs" class="mt-2"></div>
-        <p class="mt-3 text-[11px] leading-relaxed text-slate-400">Le relevé est figé chaque jeudi à 23 h (heure de La Réunion), avant la remise à zéro du vendredi à 6 h. Les chiffres sont des réservations confirmées, pas un pointage de présence. Le cumul commence au premier relevé automatique; les anciennes confirmations ne sont pas reconstituables. Les invités sont comptés sous le nom renseigné.</p>
+        <p class="mt-3 text-[11px] leading-relaxed text-slate-400">Le relevé des votes est figé chaque jeudi à 23 h (heure de La Réunion), avant la remise à zéro du vendredi à 6 h. Les confirmations sont des réservations, pas un pointage de présence ; les absences sont signalées manuellement par un admin après le créneau. Le cumul commence au premier relevé automatique. Les invités sont comptés sous le nom renseigné.</p>
         <button id="admin-stats-export" onclick="exporterStatsXLSX()" disabled class="w-full mt-3 bg-blue-600 disabled:bg-slate-700 disabled:text-slate-400 text-white font-bold py-3 rounded-xl text-sm">Télécharger le classeur pour Google Sheets (.xlsx)</button>
         <p class="mt-1 text-[10px] text-slate-400">Deux onglets : Créneaux (totaux et moyennes) et Joueurs. Compatible avec l’application Google Sheets.</p>
       </section>
@@ -942,43 +942,136 @@
     }
   }
 
+  function sessionEstTerminee(session) {
+    const debut = new Date(session?.debut_date).getTime();
+    if (!Number.isFinite(debut)) return false;
+    const horaire = String(session?.horaires || '').match(/(\d{1,2})h(\d{2})\s*-\s*(\d{1,2})h(\d{2})/i);
+    let dureeMinutes = 150;
+    if (horaire) {
+      const debutMinutes = Number(horaire[1]) * 60 + Number(horaire[2]);
+      const finMinutes = Number(horaire[3]) * 60 + Number(horaire[4]);
+      dureeMinutes = (finMinutes - debutMinutes + 1440) % 1440 || 1440;
+    }
+    return Date.now() >= debut + dureeMinutes * 60000;
+  }
+
+  function calculerAbsencesSaison(resultat) {
+    const saisonTrouvee = String(resultat?.season || '').match(/^(\d{4})-\d{4}$/);
+    let anneeDebut = saisonTrouvee ? Number(saisonTrouvee[1]) : NaN;
+    if (!Number.isFinite(anneeDebut)) {
+      const maintenant = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Indian/Reunion', year: 'numeric', month: '2-digit'
+      }).formatToParts(new Date()).map(part => [part.type, part.value]));
+      const annee = Number(maintenant.year);
+      anneeDebut = Number(maintenant.month) >= 8 ? annee : annee - 1;
+    }
+    const debutSaison = String(anneeDebut) + '-08-01';
+    const finSaison = String(anneeDebut + 1) + '-08-01';
+    const dateLocale = valeur => {
+      if (!valeur) return '';
+      const date = new Date(valeur);
+      if (Number.isNaN(date.getTime())) return '';
+      const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Indian/Reunion', year: 'numeric', month: '2-digit', day: '2-digit'
+      }).formatToParts(date).map(part => [part.type, part.value]));
+      return p.year + '-' + p.month + '-' + p.day;
+    };
+    const derniers = new Map();
+    for (const event of resultat?.events || []) {
+      if (!['absence','annulation_absence'].includes(event.type_evenement)) continue;
+      if (!['session-mardi','session-jeudi'].includes(event.session_id)) continue;
+      const date = dateLocale(event.session_debut_date);
+      if (!date || date < debutSaison || date >= finSaison) continue;
+      const id = String(event.inscription_id || '');
+      if (!id) continue;
+      const horodatage = Date.parse(event.created_at || '') || 0;
+      const precedent = derniers.get(id);
+      if (!precedent || horodatage >= precedent.horodatage) derniers.set(id, { ...event, horodatage });
+    }
+    return [...derniers.values()].filter(event => event.type_evenement === 'absence');
+  }
+
+  async function signalerAbsenceAdmin(voteId, absent) {
+    if (!profil.admin || !motDePasseAdminEnMemoire) {
+      return alert('Le mode Administrateur a expiré. Rouvre Profil et reconnecte-toi.');
+    }
+    const vote = inscriptions.find(item => String(item.id) === String(voteId));
+    if (!vote) return alert('Vote introuvable. Actualise la liste admin puis réessaie.');
+    if (vote.statut !== 'confirmed') return alert('Seul un vote confirmé peut être signalé absent.');
+    const confirmation = absent
+      ? 'Signaler ' + vote.prenom + ' ' + vote.nom + ' absent de cette séance ?'
+      : 'Retirer le signalement d’absence pour ' + vote.prenom + ' ' + vote.nom + ' ?';
+    if (!confirm(confirmation)) return;
+
+    try {
+      await appelerFonctionAdmin('set_no_show', {
+        voteId,
+        absent,
+        acteur: (profil.prenom + ' ' + profil.nom).trim()
+      });
+      await rechargerInscriptions();
+      const panneauAdmin = document.getElementById('modal-gestion-admin');
+      if (panneauAdmin && !panneauAdmin.classList.contains('hidden')) await chargerDonneesGestionAdmin();
+      alert(absent ? 'Absence signalée pour ' + vote.prenom + ' ' + vote.nom + '.' : 'Signalement retiré pour ' + vote.prenom + ' ' + vote.nom + '.');
+    } catch (error) {
+      alert('Impossible de modifier le signalement : ' + (error.message || error));
+    }
+  }
+
   function afficherVotesAdmin(resultat) {
     const zone = document.getElementById('admin-votes-listes');
     const creneaux = sessionsDuCycle().filter(session => ['session-mardi','session-jeudi'].includes(session.id));
+    const votesAbsents = new Set(calculerAbsencesSaison(resultat).map(event => String(event.inscription_id)));
     zone.innerHTML = creneaux.map(session => {
       const inscrits = (resultat.activeVotes || []).filter(vote => vote.session_id === session.id);
       const confirmes = inscrits.filter(vote => vote.statut === 'confirmed');
       const attente = inscrits.filter(vote => vote.statut === 'waitlisted').sort((a,b)=>Number(a.date_demande||0)-Number(b.date_demande||0));
       const ligne = (vote,index,enAttente) => {
+        const estAbsent = !enAttente && votesAbsents.has(String(vote.id));
+        const classeCarte = enAttente ? 'border-amber-800 bg-amber-950/50' : estAbsent ? 'border-orange-700 bg-orange-950/40' : 'border-slate-600 bg-slate-700/70';
         const confirmer = enAttente ? '<button onclick="confirmerVoteAdmin(&quot;' + echapper(vote.id) + '&quot;)" class="rounded-lg bg-blue-700 px-2 py-1.5 text-[10px] font-bold text-white">Confirmer</button>' : '';
+        const boutonAbsence = !enAttente && sessionEstTerminee(session)
+          ? '<button onclick="signalerAbsenceAdmin(&quot;' + echapper(vote.id) + '&quot;,' + (estAbsent ? 'false' : 'true') + ')" class="rounded-lg bg-amber-800 px-2 py-1.5 text-[10px] font-bold text-amber-100">' + (estAbsent ? 'Annuler absence' : 'Signaler absent') + '</button>'
+          : '';
         const annuler = '<button onclick="annulerInscription(&quot;' + echapper(vote.id) + '&quot;)" class="rounded-lg bg-red-900 px-2 py-1.5 text-[10px] font-bold text-red-100">Annuler</button>';
-        return '<div class="flex items-center justify-between gap-2 rounded-lg border ' + (enAttente ? 'border-amber-800 bg-amber-950/50' : 'border-slate-600 bg-slate-700/70') + ' p-2"><div class="min-w-0"><p class="text-xs font-bold">' + (index+1) + '. ' + echapper(vote.prenom) + ' ' + echapper(vote.nom) + (vote.est_invite ? ' <span class="font-normal text-slate-300">(invité par ' + echapper(vote.invite_par_nom || '') + ')</span>' : '') + '</p><p class="text-[10px] text-slate-300">' + (enAttente ? 'En attente' : 'Confirmé') + ' · ' + echapper(formatHorodatage(vote.date_demande)) + '</p></div><div class="flex shrink-0 flex-col gap-1">' + confirmer + annuler + '</div></div>';
+        const statut = enAttente ? 'En attente' : estAbsent ? 'Absence signalée' : 'Confirmé';
+        return '<div class="flex items-center justify-between gap-2 rounded-lg border ' + classeCarte + ' p-2"><div class="min-w-0"><p class="text-xs font-bold">' + (index+1) + '. ' + echapper(vote.prenom) + ' ' + echapper(vote.nom) + (vote.est_invite ? ' <span class="font-normal text-slate-300">(invité par ' + echapper(vote.invite_par_nom || '') + ')</span>' : '') + '</p><p class="text-[10px] text-slate-300">' + statut + ' · ' + echapper(formatHorodatage(vote.date_demande)) + '</p></div><div class="flex shrink-0 flex-col gap-1">' + confirmer + boutonAbsence + annuler + '</div></div>';
       };
       const liste = (items,titre,enAttente) => '<section class="mt-2"><h5 class="mb-1 text-[10px] font-extrabold uppercase text-slate-300">' + titre + ' (' + items.length + ')</h5>' + (items.length ? items.map((vote,index)=>ligne(vote,index,enAttente)).join('') : '<p class="text-[10px] italic text-slate-400">Aucun</p>') + '</section>';
       return '<article class="rounded-xl border border-slate-600 bg-slate-900/60 p-3"><h4 class="font-bold text-sm">' + echapper(libelleSession(session)) + '</h4>' + liste(confirmes,'Confirmés',false) + liste(attente,'Attente',true) + '</article>';
     }).join('') || '<p class="text-xs text-slate-400">Aucun vote cette semaine.</p>';
   }
 
-  function calculerStatsSaisonJoueurs(lignes) {
+  function calculerStatsSaisonJoueurs(lignes, absences = []) {
     const joueurs = new Map();
     const cleNom = valeur => String(valeur || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLocaleLowerCase('fr-FR').replace(/\s+/g, ' ');
+    const creerJoueur = (nom, prenom) => ({
+      nom: String(nom || '').trim(),
+      prenom: String(prenom || '').trim(),
+      mardi: { confirmes: 0, annulations: 0, absences: 0 },
+      jeudi: { confirmes: 0, annulations: 0, absences: 0 }
+    });
     for (const ligne of lignes || []) {
       if (!['session-mardi','session-jeudi'].includes(ligne.session_id)) continue;
       const nom = String(ligne.nom || '').trim();
       const prenom = String(ligne.prenom || '').trim();
       if (!nom && !prenom) continue;
       const cle = cleNom(nom) + '|' + cleNom(prenom);
-      if (!joueurs.has(cle)) {
-        joueurs.set(cle, {
-          nom, prenom,
-          mardi: { confirmes: 0, annulations: 0 },
-          jeudi: { confirmes: 0, annulations: 0 }
-        });
-      }
+      if (!joueurs.has(cle)) joueurs.set(cle, creerJoueur(nom, prenom));
       const joueur = joueurs.get(cle);
       const jour = ligne.session_id === 'session-mardi' ? 'mardi' : 'jeudi';
       joueur[jour].confirmes += Number(ligne.votes_confirmes) || 0;
       joueur[jour].annulations += Number(ligne.annulations) || 0;
+    }
+    for (const absence of absences || []) {
+      if (!['session-mardi','session-jeudi'].includes(absence.session_id)) continue;
+      const nom = String(absence.nom || '').trim();
+      const prenom = String(absence.prenom || '').trim();
+      if (!nom && !prenom) continue;
+      const cle = cleNom(nom) + '|' + cleNom(prenom);
+      if (!joueurs.has(cle)) joueurs.set(cle, creerJoueur(nom, prenom));
+      const jour = absence.session_id === 'session-mardi' ? 'mardi' : 'jeudi';
+      joueurs.get(cle)[jour].absences += 1;
     }
     return [...joueurs.values()].sort((a,b) =>
       a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'base' }) ||
@@ -1014,8 +1107,8 @@
   function calculerStatsGlobalesSaison(resultat) {
     const officiel = Array.isArray(resultat.seasonSessionStats) && resultat.seasonSessionStats.length > 0;
     const stats = {
-      mardi: { seances: 0, confirmes: 0, annulations: 0 },
-      jeudi: { seances: 0, confirmes: 0, annulations: 0 }
+      mardi: { seances: 0, confirmes: 0, annulations: 0, absences: 0 },
+      jeudi: { seances: 0, confirmes: 0, annulations: 0, absences: 0 }
     };
     if (officiel) {
       for (const ligne of resultat.seasonSessionStats) {
@@ -1037,16 +1130,20 @@
         stats[jour].annulations += Number(ligne.annulations) || 0;
       }
     }
+    const absences = calculerAbsencesSaison(resultat);
+    stats.mardi.absences = absences.filter(event => event.session_id === 'session-mardi').length;
+    stats.jeudi.absences = absences.filter(event => event.session_id === 'session-jeudi').length;
     const total = {
       seances: stats.mardi.seances + stats.jeudi.seances,
       confirmes: stats.mardi.confirmes + stats.jeudi.confirmes,
-      annulations: stats.mardi.annulations + stats.jeudi.annulations
+      annulations: stats.mardi.annulations + stats.jeudi.annulations,
+      absences: stats.mardi.absences + stats.jeudi.absences
     };
     return {
       officiel,
-      mardi: { ...stats.mardi, moyConfirmes: stats.mardi.seances ? stats.mardi.confirmes / stats.mardi.seances : 0, moyAnnulations: stats.mardi.seances ? stats.mardi.annulations / stats.mardi.seances : 0 },
-      jeudi: { ...stats.jeudi, moyConfirmes: stats.jeudi.seances ? stats.jeudi.confirmes / stats.jeudi.seances : 0, moyAnnulations: stats.jeudi.seances ? stats.jeudi.annulations / stats.jeudi.seances : 0 },
-      total: { ...total, moyConfirmes: total.seances ? total.confirmes / total.seances : 0, moyAnnulations: total.seances ? total.annulations / total.seances : 0 }
+      mardi: { ...stats.mardi, moyConfirmes: stats.mardi.seances ? stats.mardi.confirmes / stats.mardi.seances : 0, moyAnnulations: stats.mardi.seances ? stats.mardi.annulations / stats.mardi.seances : 0, moyAbsences: stats.mardi.seances ? stats.mardi.absences / stats.mardi.seances : 0 },
+      jeudi: { ...stats.jeudi, moyConfirmes: stats.jeudi.seances ? stats.jeudi.confirmes / stats.jeudi.seances : 0, moyAnnulations: stats.jeudi.seances ? stats.jeudi.annulations / stats.jeudi.seances : 0, moyAbsences: stats.jeudi.seances ? stats.jeudi.absences / stats.jeudi.seances : 0 },
+      total: { ...total, moyConfirmes: total.seances ? total.confirmes / total.seances : 0, moyAnnulations: total.seances ? total.annulations / total.seances : 0, moyAbsences: total.seances ? total.absences / total.seances : 0 }
     };
   }
 
@@ -1054,6 +1151,7 @@
     const zoneGlobal = document.getElementById('admin-stats-global');
     const zoneJoueurs = document.getElementById('admin-stats-joueurs');
     const global = calculerStatsGlobalesSaison(resultat);
+    const absences = calculerAbsencesSaison(resultat);
     const formatMoyenne = valeur => Number(valeur || 0).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
     if (zoneGlobal) {
       const blocs = [
@@ -1068,22 +1166,28 @@
           '<div class="mt-1 grid grid-cols-2 gap-x-2 gap-y-1 text-[10px] leading-tight">' +
             '<p><span class="text-slate-400">Confirmés cumulés</span><br><b class="text-emerald-200">' + stats.confirmes + '</b></p>' +
             '<p><span class="text-slate-400">Annulations cumulées</span><br><b class="text-amber-200">' + stats.annulations + '</b></p>' +
+            '<p><span class="text-slate-400">Absences signalées</span><br><b class="text-orange-200">' + stats.absences + '</b></p>' +
             '<p><span class="text-slate-400">Moy. confirmés / créneau</span><br><b>' + formatMoyenne(stats.moyConfirmes) + '</b></p>' +
             '<p><span class="text-slate-400">Moy. annulations / créneau</span><br><b>' + formatMoyenne(stats.moyAnnulations) + '</b></p>' +
+            '<p><span class="text-slate-400">Moy. absences / créneau</span><br><b>' + formatMoyenne(stats.moyAbsences) + '</b></p>' +
           '</div>' +
         '</article>'
       ).join('');
     }
     if (!zoneJoueurs) return;
     const releveOfficiel = Array.isArray(resultat.seasonPlayerStats) && resultat.seasonPlayerStats.length > 0;
-    const joueurs = calculerStatsSaisonJoueurs(releveOfficiel ? resultat.seasonPlayerStats : apercuStatsVotesActuels(resultat));
+    const joueurs = calculerStatsSaisonJoueurs(
+      releveOfficiel ? resultat.seasonPlayerStats : apercuStatsVotesActuels(resultat),
+      absences
+    );
     if (!joueurs.length) {
-      zoneJoueurs.innerHTML = '<p class="rounded-lg border border-slate-700 bg-slate-800/70 p-3 text-xs text-slate-300">Aucun joueur inscrit dans les créneaux actuels. Le premier relevé officiel sera enregistré jeudi à 23 h.</p>';
+      zoneJoueurs.innerHTML = '<p class="rounded-lg border border-slate-700 bg-slate-800/70 p-3 text-xs text-slate-300">Aucun joueur inscrit ou signalé absent dans les statistiques de saison.</p>';
       return;
     }
     const total = joueur => ({
       confirmes: joueur.mardi.confirmes + joueur.jeudi.confirmes,
-      annulations: joueur.mardi.annulations + joueur.jeudi.annulations
+      annulations: joueur.mardi.annulations + joueur.jeudi.annulations,
+      absences: joueur.mardi.absences + joueur.jeudi.absences
     });
     const lignes = joueurs.map(joueur => {
       const cumule = total(joueur);
@@ -1091,27 +1195,30 @@
         '<th scope="row" class="sticky left-0 z-10 min-w-[105px] bg-slate-800 px-2 py-2 text-left font-bold text-slate-100">' + echapper([joueur.nom, joueur.prenom].filter(Boolean).join(' ')) + '</th>' +
         '<td class="px-2 py-2 text-center">' + joueur.mardi.confirmes + '</td>' +
         '<td class="px-2 py-2 text-center">' + joueur.mardi.annulations + '</td>' +
+        '<td class="px-2 py-2 text-center text-orange-200">' + joueur.mardi.absences + '</td>' +
         '<td class="px-2 py-2 text-center">' + joueur.jeudi.confirmes + '</td>' +
         '<td class="px-2 py-2 text-center">' + joueur.jeudi.annulations + '</td>' +
+        '<td class="px-2 py-2 text-center text-orange-200">' + joueur.jeudi.absences + '</td>' +
         '<td class="px-2 py-2 text-center font-bold text-emerald-200">' + cumule.confirmes + '</td>' +
         '<td class="px-2 py-2 text-center font-bold text-amber-200">' + cumule.annulations + '</td>' +
+        '<td class="px-2 py-2 text-center font-bold text-orange-200">' + cumule.absences + '</td>' +
       '</tr>';
     }).join('');
-    const avertissementJoueurs = releveOfficiel ? '' : '<p class="mb-2 rounded-lg border border-amber-700 bg-amber-950/60 p-2 text-[11px] font-semibold text-amber-200">APERÇU TEST · joueurs actuellement inscrits; seuls les votes confirmés sont comptés. Non ajouté au cumul saisonnier.</p>';
+    const avertissementJoueurs = releveOfficiel ? '' : '<p class="mb-2 rounded-lg border border-amber-700 bg-amber-950/60 p-2 text-[11px] font-semibold text-amber-200">APERÇU TEST · données des créneaux actuels seulement; non incluses au cumul saisonnier.</p>';
     zoneJoueurs.innerHTML = avertissementJoueurs +
       '<div class="overflow-x-auto rounded-lg border border-slate-700" style="-webkit-overflow-scrolling:touch">' +
-        '<table class="min-w-[600px] w-full text-[10px] text-slate-200">' +
+        '<table class="min-w-[760px] w-full text-[10px] text-slate-200">' +
           '<thead>' +
             '<tr class="bg-slate-800 text-[10px] uppercase">' +
               '<th rowspan="2" class="sticky left-0 z-20 min-w-[105px] bg-slate-800 px-2 py-2 text-left">Joueur</th>' +
-              '<th colspan="2" class="px-2 py-2 text-blue-200">Mardi</th>' +
-              '<th colspan="2" class="px-2 py-2 text-orange-200">Jeudi</th>' +
-              '<th colspan="2" class="px-2 py-2 text-emerald-200">Total saison</th>' +
+              '<th colspan="3" class="px-2 py-2 text-blue-200">Mardi</th>' +
+              '<th colspan="3" class="px-2 py-2 text-orange-200">Jeudi</th>' +
+              '<th colspan="3" class="px-2 py-2 text-emerald-200">Total saison</th>' +
             '</tr>' +
             '<tr class="bg-slate-900 text-slate-300">' +
-              '<th class="px-2 py-2">Confirmés</th><th class="px-2 py-2">Annulés</th>' +
-              '<th class="px-2 py-2">Confirmés</th><th class="px-2 py-2">Annulés</th>' +
-              '<th class="px-2 py-2">Confirmés</th><th class="px-2 py-2">Annulés</th>' +
+              '<th class="px-2 py-2">Confirmés</th><th class="px-2 py-2">Annulés</th><th class="px-2 py-2">Absents</th>' +
+              '<th class="px-2 py-2">Confirmés</th><th class="px-2 py-2">Annulés</th><th class="px-2 py-2">Absents</th>' +
+              '<th class="px-2 py-2">Confirmés</th><th class="px-2 py-2">Annulés</th><th class="px-2 py-2">Absents</th>' +
             '</tr>' +
           '</thead>' +
           '<tbody>' + lignes + '</tbody>' +
@@ -1127,7 +1234,8 @@
     }
     const officiel = Array.isArray(statsAdminData.seasonSessionStats) && statsAdminData.seasonSessionStats.length > 0;
     const lignesJoueurs = officiel ? statsAdminData.seasonPlayerStats || [] : apercuStatsVotesActuels(statsAdminData);
-    const joueurs = calculerStatsSaisonJoueurs(lignesJoueurs);
+    const absences = calculerAbsencesSaison(statsAdminData);
+    const joueurs = calculerStatsSaisonJoueurs(lignesJoueurs, absences);
     const global = calculerStatsGlobalesSaison(statsAdminData);
 
     const rowsCreneaux = [['Créneau','Indicateur','Valeur']];
@@ -1135,17 +1243,26 @@
       rowsCreneaux.push([nom,'Séances relevées',stats.seances]);
       rowsCreneaux.push([nom,'Confirmés cumulés',stats.confirmes]);
       rowsCreneaux.push([nom,'Annulations cumulées',stats.annulations]);
+      rowsCreneaux.push([nom,'Absences signalées',stats.absences]);
       rowsCreneaux.push([nom,'Moyenne confirmés / séance',Number(stats.moyConfirmes.toFixed(1))]);
       rowsCreneaux.push([nom,'Moyenne annulations / séance',Number(stats.moyAnnulations.toFixed(1))]);
+      rowsCreneaux.push([nom,'Moyenne absences / séance',Number(stats.moyAbsences.toFixed(1))]);
     }
 
-    const rowsJoueurs = [['Joueur','Mardi · confirmés / annulations','Jeudi · confirmés / annulations','Total saison · confirmés / annulations']];
+    const rowsJoueurs = [[
+      'Joueur',
+      'Mardi · confirmés','Mardi · annulations','Mardi · absences',
+      'Jeudi · confirmés','Jeudi · annulations','Jeudi · absences',
+      'Total · confirmés','Total · annulations','Total · absences'
+    ]];
     for (const joueur of joueurs) {
       rowsJoueurs.push([
         [joueur.nom, joueur.prenom].filter(Boolean).join(' '),
-        joueur.mardi.confirmes + ' / ' + joueur.mardi.annulations,
-        joueur.jeudi.confirmes + ' / ' + joueur.jeudi.annulations,
-        (joueur.mardi.confirmes + joueur.jeudi.confirmes) + ' / ' + (joueur.mardi.annulations + joueur.jeudi.annulations)
+        joueur.mardi.confirmes, joueur.mardi.annulations, joueur.mardi.absences,
+        joueur.jeudi.confirmes, joueur.jeudi.annulations, joueur.jeudi.absences,
+        joueur.mardi.confirmes + joueur.jeudi.confirmes,
+        joueur.mardi.annulations + joueur.jeudi.annulations,
+        joueur.mardi.absences + joueur.jeudi.absences
       ]);
     }
 
@@ -1154,14 +1271,15 @@
     feuilleCreneaux['!cols'] = [{ wch: 18 }, { wch: 30 }, { wch: 12 }];
     feuilleCreneaux['!autofilter'] = { ref: 'A1:C' + rowsCreneaux.length };
     const feuilleJoueurs = XLSX.utils.aoa_to_sheet(rowsJoueurs);
-    feuilleJoueurs['!cols'] = [{ wch: 24 }, { wch: 28 }, { wch: 28 }, { wch: 30 }];
-    feuilleJoueurs['!autofilter'] = { ref: 'A1:D' + rowsJoueurs.length };
+    feuilleJoueurs['!cols'] = [{ wch: 24 },{ wch: 18 },{ wch: 20 },{ wch: 16 },{ wch: 18 },{ wch: 20 },{ wch: 16 },{ wch: 18 },{ wch: 20 },{ wch: 16 }];
+    feuilleJoueurs['!autofilter'] = { ref: 'A1:J' + rowsJoueurs.length };
     XLSX.utils.book_append_sheet(classeur, feuilleCreneaux, officiel ? 'Créneaux' : 'Créneaux test');
     XLSX.utils.book_append_sheet(classeur, feuilleJoueurs, officiel ? 'Joueurs' : 'Joueurs test');
     const date = new Date().toLocaleDateString('sv-SE', { timeZone: 'Indian/Reunion' });
     const type = officiel ? 'saison' : 'apercu-test';
     XLSX.writeFile(classeur, 'stats-blr-google-sheets-' + type + '-' + (statsAdminData.season || '') + '-' + date + '.xlsx');
   }
+
   function ouvrirEdition(sessionId) {
     if (!profil.admin) return alert('Active le mode Administrateur dans Profil.');
     const session = sessions.find(s => s.id === sessionId);

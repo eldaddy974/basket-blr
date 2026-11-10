@@ -1107,7 +1107,7 @@
   }
 
   function calculerDelaisVotesSaison(resultat) {
-    const saisonTrouvee = String(resultat?.season || '').match(/^(\\d{4})-\\d{4}$/);
+    const saisonTrouvee = String(resultat?.season || '').match(/^(\d{4})-\d{4}$/);
     let anneeDebut = saisonTrouvee ? Number(saisonTrouvee[1]) : NaN;
     if (!Number.isFinite(anneeDebut)) {
       const maintenant = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
@@ -1130,7 +1130,7 @@
     const dateDemandeMs = valeur => {
       if (typeof valeur === 'number') return valeur;
       const texte = String(valeur || '').trim();
-      if (/^\\d+$/.test(texte)) return Number(texte);
+      if (/^\d+$/.test(texte)) return Number(texte);
       const parse = Date.parse(texte);
       return Number.isFinite(parse) ? parse : NaN;
     };
@@ -1155,7 +1155,7 @@
 
   function calculerStatsSaisonJoueurs(lignes, absences = [], votesDelai = []) {
     const joueurs = new Map();
-    const cleNom = valeur => String(valeur || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').trim().toLocaleLowerCase('fr-FR').replace(/\\s+/g, ' ');
+    const cleNom = valeur => String(valeur || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLocaleLowerCase('fr-FR').replace(/\s+/g, ' ');
     const creerJoueur = (nom, prenom) => ({
       nom: String(nom || '').trim(),
       prenom: String(prenom || '').trim(),

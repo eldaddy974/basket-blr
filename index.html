@@ -160,6 +160,24 @@
     </div>
   </div>
 
+  <!-- CORRECTION ADMIN D'UN NOM -->
+  <div id="modal-correction-nom-admin" class="hidden fixed inset-0 z-[70] bg-black/70 flex items-center justify-center p-3">
+    <div class="w-full max-w-sm rounded-2xl border border-slate-600 bg-slate-800 p-5 text-slate-100 shadow-2xl">
+      <h2 class="text-lg font-extrabold">Corriger le nom du joueur</h2>
+      <p class="mt-1 text-xs text-slate-300">La correction conserve le vote et son historique.</p>
+      <label class="mt-4 block text-xs font-bold text-slate-200">Prénom (en entier)
+        <input id="admin-correction-prenom" type="text" maxlength="100" autocomplete="off" class="mt-1 w-full rounded-lg border border-slate-600 bg-slate-900 p-2.5 text-sm text-slate-100">
+      </label>
+      <label class="mt-3 block text-xs font-bold text-slate-200">Nom de famille (en entier)
+        <input id="admin-correction-nom" type="text" maxlength="100" autocomplete="off" class="mt-1 w-full rounded-lg border border-slate-600 bg-slate-900 p-2.5 text-sm text-slate-100">
+      </label>
+      <div class="mt-4 flex gap-2">
+        <button onclick="fermerCorrectionNomAdmin()" class="flex-1 rounded-lg bg-slate-700 py-2.5 text-sm font-bold text-slate-100">Annuler</button>
+        <button id="admin-correction-enregistrer" onclick="enregistrerCorrectionNomAdmin()" class="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-bold text-white">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
   <!-- GESTION ADMIN GLOBALE -->
   <div id="modal-gestion-admin" class="hidden fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-2 sm:p-4">
     <div class="bg-slate-800 text-slate-100 rounded-2xl w-full max-w-4xl p-4 sm:p-6 shadow-xl max-h-[94vh] overflow-y-auto">
@@ -212,6 +230,7 @@
   let sessionEditionId = null;
   let minuteurOuvertureH24 = null;
   let statsAdminData = null;
+  let voteCorrectionNomAdminId = null;
 
   function echapper(valeur) {
     return String(valeur ?? '').replace(/[&<>"']/g, c => ({
@@ -1018,6 +1037,50 @@
     }
   }
 
+  function ouvrirCorrectionNomAdmin(voteId) {
+    if (!profil.admin || !motDePasseAdminEnMemoire) return alert('Le mode Administrateur a expiré. Rouvre Profil et reconnecte-toi.');
+    const vote = (statsAdminData?.activeVotes || inscriptions || []).find(item => String(item.id) === String(voteId))
+      || inscriptions.find(item => String(item.id) === String(voteId));
+    if (!vote) return alert('Vote introuvable. Actualise la liste admin puis réessaie.');
+    voteCorrectionNomAdminId = String(voteId);
+    document.getElementById('admin-correction-prenom').value = vote.prenom || '';
+    document.getElementById('admin-correction-nom').value = vote.nom || '';
+    document.getElementById('modal-correction-nom-admin').classList.remove('hidden');
+    setTimeout(() => document.getElementById('admin-correction-prenom').focus(), 50);
+  }
+
+  function fermerCorrectionNomAdmin() {
+    document.getElementById('modal-correction-nom-admin').classList.add('hidden');
+    voteCorrectionNomAdminId = null;
+  }
+
+  async function enregistrerCorrectionNomAdmin() {
+    if (!profil.admin || !motDePasseAdminEnMemoire) return alert('Le mode Administrateur a expiré. Rouvre Profil et reconnecte-toi.');
+    const prenom = document.getElementById('admin-correction-prenom').value.trim().replace(/\s+/g, ' ');
+    const nom = document.getElementById('admin-correction-nom').value.trim().replace(/\s+/g, ' ');
+    if (!prenom || !nom) return alert('Renseigne le prénom et le nom de famille en entier.');
+    if (!voteCorrectionNomAdminId) return alert('Aucun vote sélectionné.');
+    const bouton = document.getElementById('admin-correction-enregistrer');
+    bouton.disabled = true;
+    try {
+      await appelerFonctionAdmin('correct_vote_name', {
+        voteId: voteCorrectionNomAdminId,
+        prenom,
+        nom,
+        acteur: (profil.prenom + ' ' + profil.nom).trim()
+      });
+      fermerCorrectionNomAdmin();
+      await rechargerInscriptions();
+      const panneauAdmin = document.getElementById('modal-gestion-admin');
+      if (panneauAdmin && !panneauAdmin.classList.contains('hidden')) await chargerDonneesGestionAdmin();
+      alert('Le nom du joueur a été corrigé. Son vote est conservé.');
+    } catch (error) {
+      alert('Correction impossible : ' + (error.message || error));
+    } finally {
+      bouton.disabled = false;
+    }
+  }
+
   function afficherVotesAdmin(resultat) {
     const zone = document.getElementById('admin-votes-listes');
     const creneaux = sessionsDuCycle().filter(session => ['session-mardi','session-jeudi'].includes(session.id));
@@ -1029,13 +1092,14 @@
       const ligne = (vote,index,enAttente) => {
         const estAbsent = !enAttente && votesAbsents.has(String(vote.id));
         const classeCarte = enAttente ? 'border-amber-800 bg-amber-950/50' : estAbsent ? 'border-orange-700 bg-orange-950/40' : 'border-slate-600 bg-slate-700/70';
+        const corrigerNom = '<button onclick="ouvrirCorrectionNomAdmin(&quot;' + echapper(vote.id) + '&quot;)" class="rounded-lg bg-slate-600 px-2 py-1.5 text-[10px] font-bold text-white">Corriger nom</button>';
         const confirmer = enAttente ? '<button onclick="confirmerVoteAdmin(&quot;' + echapper(vote.id) + '&quot;)" class="rounded-lg bg-blue-700 px-2 py-1.5 text-[10px] font-bold text-white">Confirmer</button>' : '';
         const boutonAbsence = !enAttente && sessionEstTerminee(session)
           ? '<button onclick="signalerAbsenceAdmin(&quot;' + echapper(vote.id) + '&quot;,' + (estAbsent ? 'false' : 'true') + ')" class="rounded-lg bg-amber-800 px-2 py-1.5 text-[10px] font-bold text-amber-100">' + (estAbsent ? 'Annuler absence' : 'Signaler absent') + '</button>'
           : '';
         const annuler = '<button onclick="annulerInscription(&quot;' + echapper(vote.id) + '&quot;)" class="rounded-lg bg-red-900 px-2 py-1.5 text-[10px] font-bold text-red-100">Annuler</button>';
         const statut = enAttente ? 'En attente' : estAbsent ? 'Absence signalée' : 'Confirmé';
-        return '<div class="flex items-center justify-between gap-2 rounded-lg border ' + classeCarte + ' p-2"><div class="min-w-0"><p class="text-xs font-bold">' + (index+1) + '. ' + echapper(vote.prenom) + ' ' + echapper(vote.nom) + (vote.est_invite ? ' <span class="font-normal text-slate-300">(invité par ' + echapper(vote.invite_par_nom || '') + ')</span>' : '') + '</p><p class="text-[10px] text-slate-300">' + statut + ' · ' + echapper(formatHorodatage(vote.date_demande)) + '</p></div><div class="flex shrink-0 flex-col gap-1">' + confirmer + boutonAbsence + annuler + '</div></div>';
+        return '<div class="flex items-center justify-between gap-2 rounded-lg border ' + classeCarte + ' p-2"><div class="min-w-0"><p class="text-xs font-bold">' + (index+1) + '. ' + echapper(vote.prenom) + ' ' + echapper(vote.nom) + (vote.est_invite ? ' <span class="font-normal text-slate-300">(invité par ' + echapper(vote.invite_par_nom || '') + ')</span>' : '') + '</p><p class="text-[10px] text-slate-300">' + statut + ' · ' + echapper(formatHorodatage(vote.date_demande)) + '</p></div><div class="flex shrink-0 flex-col gap-1">' + corrigerNom + confirmer + boutonAbsence + annuler + '</div></div>';
       };
       const liste = (items,titre,enAttente) => '<section class="mt-2"><h5 class="mb-1 text-[10px] font-extrabold uppercase text-slate-300">' + titre + ' (' + items.length + ')</h5>' + (items.length ? items.map((vote,index)=>ligne(vote,index,enAttente)).join('') : '<p class="text-[10px] italic text-slate-400">Aucun</p>') + '</section>';
       return '<article class="rounded-xl border border-slate-600 bg-slate-900/60 p-3"><h4 class="font-bold text-sm">' + echapper(libelleSession(session)) + '</h4>' + liste(confirmes,'Confirmés',false) + liste(attente,'Attente',true) + '</article>';

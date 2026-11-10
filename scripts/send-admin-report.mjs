@@ -29,6 +29,9 @@ const reunionParts = date => Object.fromEntries(new Intl.DateTimeFormat('en-CA',
 const maintenantLocal = reunionParts(new Date());
 const jourLocal = new Date(Date.UTC(+maintenantLocal.year, +maintenantLocal.month - 1, +maintenantLocal.day));
 const jourSemaine = jourLocal.getUTCDay();
+if (jourSemaine === 5 && +maintenantLocal.hour >= 12) {
+  throw new Error('Rapport du vendredi non envoyé : le déclenchement a eu lieu après la remise à zéro de midi.');
+}
 const lundi = new Date(jourLocal);
 lundi.setUTCDate(lundi.getUTCDate() - ((jourSemaine + 6) % 7)
   + ((jourSemaine === 5 && +maintenantLocal.hour >= 12) || jourSemaine === 6 || jourSemaine === 0 ? 7 : 0));

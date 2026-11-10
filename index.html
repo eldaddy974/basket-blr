@@ -202,7 +202,7 @@
         <div id="admin-stats-global" class="mt-2 space-y-2"></div>
         <h4 class="mt-4 font-bold text-xs">Bilan par joueur · ordre alphabétique</h4>
         <div id="admin-stats-joueurs" class="mt-2"></div>
-        <p class="mt-3 text-[11px] leading-relaxed text-slate-400">Le relevé des votes est figé chaque jeudi à 23 h (heure de La Réunion), avant la remise à zéro du vendredi à 6 h. Les confirmations sont des réservations, pas un pointage de présence ; les absences sont signalées manuellement par un admin après le créneau. Le cumul commence au premier relevé automatique. Les invités sont comptés sous le nom renseigné.</p>
+        <p class="mt-3 text-[11px] leading-relaxed text-slate-400">Le relevé des votes est capturé chaque vendredi à 9 h 50 (heure de La Réunion), avant l’envoi du récapitulatif prévu vers 10 h 05 et la remise à zéro à midi. Les confirmations sont des réservations, pas un pointage de présence ; les absences sont signalées manuellement par un admin après le créneau. Le cumul commence au premier relevé automatique. Les invités sont comptés sous le nom renseigné.</p>
         <button id="admin-stats-export" onclick="exporterStatsXLSX()" disabled class="w-full mt-3 bg-blue-600 disabled:bg-slate-700 disabled:text-slate-400 text-white font-bold py-3 rounded-xl text-sm">Télécharger le classeur pour Google Sheets (.xlsx)</button>
         <p class="mt-1 text-[10px] text-slate-400">Deux onglets : Créneaux (totaux et moyennes) et Joueurs. Compatible avec l’application Google Sheets.</p>
       </section>
@@ -571,7 +571,7 @@
     const today = new Date(Date.UTC(+p.year,+p.month-1,+p.day));
     const dow = today.getUTCDay();
     const lundi = new Date(today);
-    lundi.setUTCDate(lundi.getUTCDate() - ((dow+6)%7) + ((dow===5 && +p.hour>=6 || dow===6 || dow===0) ? 7 : 0));
+    lundi.setUTCDate(lundi.getUTCDate() - ((dow+6)%7) + ((dow===5 && +p.hour>=12 || dow===6 || dow===0) ? 7 : 0));
     const vendredi = new Date(lundi); vendredi.setUTCDate(vendredi.getUTCDate()+4);
     const cle = d => { const q = Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'Indian/Reunion',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(d)).map(x=>[x.type,x.value])); return q.year+'-'+q.month+'-'+q.day; };
     return sessions.filter(x => cle(x.debut_date)>=lundi.toISOString().slice(0,10) && cle(x.debut_date)<=vendredi.toISOString().slice(0,10)).sort((a,b)=>new Date(a.debut_date)-new Date(b.debut_date)).slice(0,2);
@@ -694,7 +694,7 @@
 
       `;
 
-      if (estPassee && !annulee) carte.insertAdjacentHTML('beforeend', '<p class="mt-3 text-[11px] text-slate-300">Créneau passé — inscriptions conservées jusqu’à la remise à zéro du vendredi matin.</p>');
+      if (estPassee && !annulee) carte.insertAdjacentHTML('beforeend', '<p class="mt-3 text-[11px] text-slate-300">Créneau passé — inscriptions conservées jusqu’à la remise à zéro du vendredi à midi.</p>');
       colonne.appendChild(carte);
       container.appendChild(colonne);
     });
@@ -710,7 +710,7 @@
     const maintenant = Date.now();
     const prochains = sessionsDuCycle().filter(s => s.statut !== 'annulee');
 
-    miseAJour.textContent = 'Actualisé à ' + new Intl.DateTimeFormat('fr-FR', {hour:'2-digit',minute:'2-digit',timeZone:'Indian/Reunion'}).format(new Date()) + ' · remise à zéro vendredi à 06:00 · actualisation toutes les 15 s';
+    miseAJour.textContent = 'Actualisé à ' + new Intl.DateTimeFormat('fr-FR', {hour:'2-digit',minute:'2-digit',timeZone:'Indian/Reunion'}).format(new Date()) + ' · remise à zéro vendredi à 12:00 · actualisation toutes les 15 s';
 
     if (!prochains.length) {
       listes.innerHTML = '<p class="rounded-xl border border-slate-700 bg-slate-800 p-4 text-sm text-slate-300">Aucun créneau à venir.</p>';

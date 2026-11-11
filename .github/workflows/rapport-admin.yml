@@ -11,14 +11,24 @@ permissions:
 
 jobs:
   rapport:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - run: npm install
-      - run: npx playwright install --with-deps chromium
+      - name: Installer Chromium avec relances réseau
+        run: |
+          echo 'Acquire::Retries "3";' | sudo tee /etc/apt/apt.conf.d/80-retries
+          for attempt in 1 2 3; do
+            npx playwright install --with-deps chromium && exit 0
+            if [ "$attempt" -lt 3 ]; then
+              echo "Échec réseau temporaire pendant l’installation de Chromium; nouvelle tentative dans 15 secondes."
+              sleep 15
+            fi
+          done
+          exit 1
       - run: npm run report
         env:
           SUPABASE_URL: https://sgkomdvgocrmsrmcktnn.supabase.co
